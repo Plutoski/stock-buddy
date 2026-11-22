@@ -3,6 +3,7 @@
 import { useState } from "react";
 import type { Stock } from "@/lib/types.ts";
 import { formatUsd } from "@/lib/explain.ts";
+import { gapLevel, gapShort, type LivePrice } from "@/lib/pricing.ts";
 
 export function StockIcon({ stock, size = 36 }: { stock: Stock; size?: number }) {
   const [broken, setBroken] = useState(false);
@@ -17,8 +18,15 @@ export function StockIcon({ stock, size = 36 }: { stock: Stock; size?: number })
   );
 }
 
-export function StockList({ stocks, selected, onSelect }: {
-  stocks: Stock[]; selected?: string; onSelect: (s: Stock) => void;
+export function GapPill({ price }: { price?: LivePrice }) {
+  const label = gapShort(price?.gapPct);
+  if (!label) return null;
+  const lvl = gapLevel(price?.gapPct);
+  return <span className={`pill tiny gap-${lvl}`} title="Live trading price on Base compared with the official price">{label}</span>;
+}
+
+export function StockList({ stocks, selected, onSelect, prices }: {
+  stocks: Stock[]; selected?: string; onSelect: (s: Stock) => void; prices?: Map<string, LivePrice>;
 }) {
   const [q, setQ] = useState("");
   const query = q.trim().toLowerCase();
@@ -41,6 +49,7 @@ export function StockList({ stocks, selected, onSelect }: {
               </span>
               <span className="stock-price">
                 <strong>{s.navPrice !== undefined ? formatUsd(s.navPrice) : <span className="muted small">No price yet</span>}</strong>
+                <GapPill price={prices?.get(s.address.toLowerCase())} />
                 {s.pausedFeatures.length > 0 && <span className="pill pill-warn tiny">Paused</span>}
               </span>
             </button>

@@ -6,11 +6,14 @@ import { explainStock, formatUsd, sharesPerToken } from "@/lib/explain.ts";
 import { timeAgo } from "@/lib/market.ts";
 import { BuyPanel } from "./BuyPanel.tsx";
 import { Chat } from "./Chat.tsx";
-import { StockIcon } from "./StockList.tsx";
+import { StockIcon, GapPill } from "./StockList.tsx";
+import { gapSentence, type LivePrice } from "@/lib/pricing.ts";
 
-export function StockDetail({ stock, market, liveData, onBack }: {
+export function StockDetail({ stock, market, liveData, onBack, livePrice, priceLoading }: {
   stock: Stock; market: MarketStatus; liveData: boolean; onBack: () => void;
+  livePrice?: LivePrice; priceLoading?: boolean;
 }) {
+  const gapText = gapSentence(livePrice?.gapPct, market.isOpen);
   return (
     <div className="detail">
       <button className="btn btn-link back" onClick={onBack}>← All stocks</button>
@@ -28,6 +31,13 @@ export function StockDetail({ stock, market, liveData, onBack }: {
           <strong className="big">{stock.navPrice !== undefined ? formatUsd(stock.navPrice) : "Not published yet"}</strong>
           <span className="muted small">{stock.navPrice !== undefined ? `per token · updated ${timeAgo(stock.navPriceUpdatedAt)}` : "Coinbase hasn't published one for this token"}</span>
         </div>
+        {liveData && (
+          <div className="fact">
+            <span className="muted small">Trading price on Base now</span>
+            <strong className="big">{livePrice ? formatUsd(livePrice.tradingPrice) : priceLoading ? "Checking…" : "Unavailable"}</strong>
+            <span className="muted small">{livePrice ? <GapPill price={livePrice} /> : priceLoading ? "Getting a live price" : "No trading route right now"}</span>
+          </div>
+        )}
         <div className="fact">
           <span className="muted small">1 token equals</span>
           <strong className="big">{sharesPerToken(stock)}</strong>
@@ -43,6 +53,7 @@ export function StockDetail({ stock, market, liveData, onBack }: {
       <section className="card">
         <h3>In plain English</h3>
         {explainStock(stock, market).map((l, i) => <p key={i}>{l}</p>)}
+        {gapText && <p className={Math.abs(livePrice?.gapPct ?? 0) >= 2 ? "warn" : ""}>{gapText}</p>}
       </section>
 
       <div className="detail-grid">

@@ -9,6 +9,7 @@ import { EligibilityGate } from "@/components/EligibilityGate.tsx";
 import { StockList } from "@/components/StockList.tsx";
 import { StockDetail } from "@/components/StockDetail.tsx";
 import { Chat } from "@/components/Chat.tsx";
+import type { LivePrice } from "@/lib/pricing.ts";
 
 type Data = StocksResponse & { market: MarketStatus };
 
@@ -23,6 +24,26 @@ export default function Home() {
     refetchInterval: 60_000,
   });
   const [selected, setSelected] = useState<Stock | null>(null);
+
+  // Live trading prices for the biggest stocks (refreshed every 90s).
+  const live = data?.source === "live";
+  const { data: topPrices } = useQuery<{ prices: LivePrice[] }>({
+    queryKey: ["prices", "top"],
+    queryFn: async () => (await fetch("/api/prices")).json(),
+    enabled: live,
+    refetchInterval: 90_000,
+  });
+  // Plus the selected stock, if it isn't one of the top ones.
+  const selectedAddr = selected?.address;
+  const inTop = !!topPrices?.prices.some((p) => p.address.toLowerCase() === selectedAddr?.toLowerCase());
+  const { data: selPrice, isFetching: selLoading } = useQuery<{ prices: LivePrice[] }>({
+    queryKey: ["prices", selectedAddr],
+    queryFn: async () => (await fetch(`/api/prices?tokens=${selectedAddr}`)).json(),
+    enabled: live && !!selectedAddr && !!topPrices && !inTop,
+    refetchInterval: 90_000,
+  });
+  const priceMap = new Map<string, LivePrice>();
+  for (const p of [...(topPrices?.prices || []), ...(selPrice?.prices || [])]) priceMap.set(p.address.toLowerCase(), p);
 
   // Keep the selected stock fresh when data refreshes.
   useEffect(() => {
@@ -75,12 +96,13 @@ export default function Home() {
           {isError && (
             <p className="error">Couldn't load stocks. <button className="btn btn-link" onClick={() => refetch()}>Try again</button></p>
           )}
-          {data && <StockList stocks={data.stocks} selected={selected?.address} onSelect={choose} />}
+          {data && <StockList stocks={data.stocks} selected={selected?.address} onSelect={choose} prices={priceMap} />}
         </aside>
 
         <section className="content">
           {selected && market ? (
-            <StockDetail stock={selected} market={market} liveData={data?.source === "live"} onBack={() => choose(null)} />
+            <StockDetail stock={selected} market={market} liveData={live} onBack={() => choose(null)}
+              livePrice={priceMap.get(selected.address.toLowerCase())} priceLoading={live && (!topPrices || selLoading)} />
           ) : (
             <div className="welcome">
               {market && <p className="card">{market.explanation}</p>}

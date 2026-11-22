@@ -1,0 +1,215 @@
+"use client";
+
+import { useEffect, useState } from "react";
+import { encodeFunctionData, erc20Abi, formatUnits, parseUnits } from "viem";
+import { base } from "wagmi/chains";
+import {
+  useAccount, useChainId, useReadContract, useSendTransaction, useSwitchChain, useWaitForTransactionReceipt,
+} from "wagmi";
+import type { Quote, Stock } from "@/lib/types.ts";
+import { USDC_ADDRESS, USDC_DECIMALS, MIN_BUY_USDC, MAX_BUY_USDC, BASESCAN_TX } from "@/lib/constants.ts";
+import { withAttribution, BUILDER_CODE } from "@/lib/attribution.ts";
+import { formatUsd } from "@/lib/explain.ts";
+import { ConnectButton, friendlyError } from "./ConnectButton.tsx";
+
+type Step = "idle" | "quoting" | "quoted" | "approving" | "building" | "buying" | "done";
+
+export function priceGapPct(trade: number, reference?: number): number | undefined {
+  if (!reference || !trade) return undefined;
+  return ((trade - reference) / reference) * 100;
+}
+
+export function BuyPanel({ stock, liveData }: { stock: Stock; liveData: boolean }) {
+  const { address, isConnected } = useAccount();
+  const chainId = useChainId();
+  const { switchChain, isPending: switching } = useSwitchChain();
+
+  const [amount, setAmount] = useState("5");
+  const [quote, setQuote] = useState<Quote | null>(null);
+  const [step, setStep] = useState<Step>("idle");
+  const [error, setError] = useState("");
+  const [agree, setAgree] = useState(false);
+  const [txHash, setTxHash] = useState<`0x${string}` | undefined>();
+  const [approveHash, setApproveHash] = useState<`0x${string}` | undefined>();
+
+  const { sendTransactionAsync } = useSendTransaction();
+
+  const usdc = Number(amount);
+  const amountValid = Number.isFinite(usdc) && usdc >= MIN_BUY_USDC && usdc <= MAX_BUY_USDC;
+
+  const { data: usdcBalance, refetch: refetchBalance } = useReadContract({
+    address: USDC_ADDRESS, abi: erc20Abi, functionName: "balanceOf",
+    args: address ? [address] : undefined, chainId: base.id, query: { enabled: !!address },
+  });
+  const { data: allowance, refetch: refetchAllowance } = useReadContract({
+    address: USDC_ADDRESS, abi: erc20Abi, functionName: "allowance",
+    args: address && quote ? [address, quote.routerAddress] : undefined, chainId: base.id,
+    query: { enabled: !!address && !!quote },
+  });
+
+  const approveReceipt = useWaitForTransactionReceipt({ hash: approveHash, chainId: base.id });
+  const buyReceipt = useWaitForTransactionReceipt({ hash: txHash, chainId: base.id });
+
+  // Reset when the stock or amount changes, so an old quote is never used.
+  useEffect(() => { setQuote(null); setStep("idle"); setError(""); setAgree(false); setTxHash(undefined); setApproveHash(undefined); }, [stock.address]);
+  useEffect(() => { if (step === "quoted") { setQuote(null); setStep("idle"); } /* eslint-disable-next-line react-hooks/exhaustive-deps */ }, [amount]);
+
+  useEffect(() => { if (approveReceipt.isSuccess) { refetchAllowance(); setStep("quoted"); } }, [approveReceipt.isSuccess, refetchAllowance]);
+  useEffect(() => { if (buyReceipt.isSuccess) { setStep("done"); refetchBalance(); } }, [buyReceipt.isSuccess, refetchBalance]);
+  useEffect(() => {
+    if (buyReceipt.isError || (buyReceipt.data && buyReceipt.data.status === "reverted")) {
+      setError("The purchase didn't go through, so your USDC wasn't spent. Prices may have moved. Get a new quote and try again.");
+      setStep("idle"); setQuote(null);
+    }
+  }, [buyReceipt.isError, buyReceipt.data]);
+
+  if (!liveData) {
+    return (
+      <section className="card">
+        <h3>Buy {stock.symbol}</h3>
+        <p className="muted">Purchases are switched off while Stock Buddy is showing sample data.</p>
+      </section>
+    );
+  }
+
+  const balance = usdcBalance !== undefined ? Number(formatUnits(usdcBalance, USDC_DECIMALS)) : undefined;
+  const needed = amountValid ? parseUnits(usdc.toFixed(USDC_DECIMALS), USDC_DECIMALS) : 0n;
+  const needsApproval = quote && allowance !== undefined ? allowance < BigInt(quote.amountIn) : true;
+  const notEnough = balance !== undefined && amountValid && balance < usdc;
+  const gap = quote ? priceGapPct(quote.pricePerToken, stock.navPrice) : undefined;
+
+  async function getQuote() {
+    setError(""); setQuote(null); setStep("quoting");
+    try {
+      const res = await fetch(`/api/quote?token=${stock.address}&usdc=${usdc}`);
+      const body = await res.json();
+      if (!res.ok) throw new Error(body.error || "Couldn't get a quote.");
+      setQuote(body as Quote); setStep("quoted");
+    } catch (e) {
+      setError((e as Error).message); setStep("idle");
+    }
+  }
+
+  async function approve() {
+    if (!quote) return;
+    setError(""); setStep("approving");
+    try {
+      // Approve ONLY the exact amount for this purchase, never unlimited.
+      const data = encodeFunctionData({ abi: erc20Abi, functionName: "approve", args: [quote.routerAddress, BigInt(quote.amountIn)] });
+      const hash = await sendTransactionAsync({ to: USDC_ADDRESS, data: withAttribution(data), chainId: base.id });
+      setApproveHash(hash);
+    } catch (e) {
+      setError(friendlyError((e as Error).message)); setStep("quoted");
+    }
+  }
+
+  async function buy() {
+    if (!quote || !address) return;
+    setError(""); setStep("building");
+    try {
+      const res = await fetch("/api/build", {
+        method: "POST", headers: { "content-type": "application/json" },
+        body: JSON.stringify({ routeSummary: quote.routeSummary, sender: address }),
+      });
+      const tx = await res.json();
+      if (!res.ok) throw new Error(tx.error || "Couldn't prepare the purchase.");
+      if (tx.to?.toLowerCase() !== quote.routerAddress.toLowerCase()) throw new Error("Safety check failed: the swap address changed. Please get a new quote.");
+      setStep("buying");
+      const hash = await sendTransactionAsync({ to: tx.to, data: withAttribution(tx.data), value: BigInt(tx.value || 0), chainId: base.id });
+      setTxHash(hash);
+    } catch (e) {
+      setError(friendlyError((e as Error).message)); setStep("quoted");
+    }
+  }
+
+  const shareText = encodeURIComponent(
+    `I just bought my first tokenized ${stock.ticker} stock on @base, explained in plain English by Stock Buddy.`,
+  );
+
+  return (
+    <section className="card buy" aria-label={`Buy ${stock.symbol}`}>
+      <h3>Buy {stock.symbol}</h3>
+
+      {!isConnected ? (
+        <>
+          <p className="muted">Connect a wallet with some USDC on Base to buy. Stock Buddy never holds your money.</p>
+          <ConnectButton />
+        </>
+      ) : chainId !== base.id ? (
+        <button className="btn btn-primary" onClick={() => switchChain({ chainId: base.id })} disabled={switching}>
+          {switching ? "Switching…" : "Switch to Base network"}
+        </button>
+      ) : step === "done" && txHash ? (
+        <div className="success">
+          <p><strong>Done!</strong> You bought about {quote?.amountOutTokens.toLocaleString("en-US", { maximumFractionDigits: 6 })} {stock.symbol}.</p>
+          <p className="small"><a href={BASESCAN_TX + txHash} target="_blank" rel="noreferrer">View your receipt on Basescan ↗</a></p>
+          <div className="row">
+            <a className="btn btn-ghost" href={`https://x.com/intent/tweet?text=${shareText}`} target="_blank" rel="noreferrer">Share on X</a>
+            <button className="btn btn-ghost" onClick={() => { setStep("idle"); setQuote(null); setTxHash(undefined); setApproveHash(undefined); setAgree(false); }}>Buy more</button>
+          </div>
+        </div>
+      ) : (
+        <>
+          <label className="field">
+            <span>Amount in USDC (${MIN_BUY_USDC} to ${MAX_BUY_USDC})</span>
+            <div className="amount">
+              <span aria-hidden>$</span>
+              <input inputMode="decimal" value={amount} onChange={(e) => setAmount(e.target.value.replace(/[^0-9.]/g, ""))} aria-label="Amount in USDC" disabled={!!quote && step !== "quoted"} />
+            </div>
+          </label>
+          <div className="chips">
+            {["5", "10", "25"].map((v) => (
+              <button key={v} className={`chip ${amount === v ? "chip-on" : ""}`} onClick={() => setAmount(v)}>${v}</button>
+            ))}
+          </div>
+          {balance !== undefined && <p className="muted small">Your USDC on Base: {formatUsd(balance)}</p>}
+          {!amountValid && amount !== "" && <p className="error small">Choose an amount between ${MIN_BUY_USDC} and ${MAX_BUY_USDC}.</p>}
+          {notEnough && <p className="error small">You don't have enough USDC on Base for this amount.</p>}
+
+          {!quote && (
+            <button className="btn btn-primary btn-block" onClick={getQuote} disabled={!amountValid || step === "quoting" || !!notEnough}>
+              {step === "quoting" ? "Getting the best price…" : "See what I'd get"}
+            </button>
+          )}
+
+          {quote && (
+            <div className="quote">
+              <dl>
+                <dt>You pay</dt><dd>{formatUsd(usdc)} USDC</dd>
+                <dt>You get (about)</dt><dd>{quote.amountOutTokens.toLocaleString("en-US", { maximumFractionDigits: 6 })} {stock.symbol}</dd>
+                <dt>That's roughly</dt><dd>{(quote.amountOutTokens * stock.multiplier).toLocaleString("en-US", { maximumFractionDigits: 6 })} {stock.ticker} shares</dd>
+                <dt>Trading price now</dt><dd>{formatUsd(quote.pricePerToken)} per token</dd>
+                <dt>Official reference</dt><dd>{formatUsd(stock.navPrice)} per token</dd>
+                {quote.gasUsd !== undefined && (<><dt>Network fee (est.)</dt><dd>{formatUsd(quote.gasUsd)}</dd></>)}
+              </dl>
+              {gap !== undefined && Math.abs(gap) >= 1 && (
+                <p className="warn small">
+                  The trading price is {Math.abs(gap).toFixed(1)}% {gap > 0 ? "higher" : "lower"} than the official reference. This often happens when the US market is closed. You'd be paying the trading price.
+                </p>
+              )}
+              <p className="muted small">Max price movement allowed: 0.5%. If the price moves more, the purchase cancels and you keep your USDC.</p>
+              <label className="check">
+                <input type="checkbox" checked={agree} onChange={() => setAgree(!agree)} />
+                <span>I've read the quote. I understand this isn't advice and the value can go down.</span>
+              </label>
+
+              {needsApproval ? (
+                <button className="btn btn-primary btn-block" onClick={approve} disabled={!agree || step === "approving"}>
+                  {step === "approving" ? (approveHash ? "Waiting for confirmation…" : "Check your wallet…") : `Step 1 of 2: Allow ${formatUsd(usdc)} USDC`}
+                </button>
+              ) : (
+                <button className="btn btn-primary btn-block" onClick={buy} disabled={!agree || step === "building" || step === "buying" || needed === 0n}>
+                  {step === "building" ? "Preparing…" : step === "buying" ? (txHash ? "Confirming on Base…" : "Check your wallet…") : `${approveHash ? "Step 2 of 2: " : ""}Buy ${stock.symbol}`}
+                </button>
+              )}
+              <button className="btn btn-link small" onClick={getQuote} disabled={step !== "quoted"}>Refresh quote</button>
+            </div>
+          )}
+        </>
+      )}
+
+      {error && <p className="error small" role="alert">{error}</p>}
+      {!BUILDER_CODE && <p className="muted tiny">Developer note: no Builder Code set, so purchases won't be attributed.</p>}
+    </section>
+  );
+}

@@ -38,7 +38,9 @@ export function explainStock(stock: Stock, market: MarketStatus): string[] {
     `${stock.symbol} is a token on Base that stands for shares of ${stock.name}. Each token is backed by real ${stock.ticker} shares held by a regulated custodian.`,
     `Right now 1 ${stock.symbol} = ${sharesPerToken(stock)} ${stock.ticker} share${stock.multiplier === 1 ? "" : "s"}. That number can grow over time when dividends are paid, so one token doesn't always equal exactly one share.`,
   ];
-  if (stock.navPrice !== undefined) {
+  if (stock.navPrice === undefined) {
+    lines.push("Coinbase hasn't published an official reference value for this token yet, so compare the trading price carefully before buying.");
+  } else {
     lines.push(
       market.isOpen
         ? `The official reference value is ${formatUsd(stock.navPrice)} per token, and it's updating because the US market is open.`

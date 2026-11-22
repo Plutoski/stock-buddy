@@ -133,3 +133,48 @@ test("plural questions reach the right topic", () => {
   assert.match(builtInAnswer("what about stock splits"), /split/);
   assert.match(builtInAnswer("What does 1 NVDAc mean?", SAMPLE_STOCKS[0]), /how many real shares/);
 });
+
+// ---------- Real Coinbase API shapes (seen live on 23 Nov 2026) ----------
+import { fetchLiveStocks } from "../lib/stocks.ts";
+
+test("live fetch uses the URL Coinbase accepts (no slash before ?) and handles real records", async () => {
+  const seen: string[] = [];
+  const realistic = {
+    tokens: [
+      { contract_address: "0xb2000000000000000000002D0BA3164cc74f58B7", symbol: "GOOGLc", name: "Alphabet Inc. Class A",
+        decimals: 8, total_supply: 37248.30223607, multiplier: 1.0003771186767842, nav_price: 269.71567647,
+        nav_price_updated_at: "2026-11-20T21:42:19Z", description: "x".repeat(5000) },
+      { contract_address: "0xb20000000000000000000006f910a0e7BBD3c168", symbol: "APPc", name: "AppLovin Corporation",
+        decimals: 8, total_supply: 66.01157522, multiplier: 1, description: "legal text" }, // no nav_price
+      { contract_address: "0xb200000000000000000000000000000000000abc", symbol: "BRK.Bc", name: "Berkshire Hathaway Inc. Class B",
+        decimals: 8, total_supply: 10, multiplier: 1, nav_price: 480.1, nav_price_updated_at: "2026-11-20T21:00:00Z" },
+    ],
+  };
+  const original = globalThis.fetch;
+  globalThis.fetch = (async (url: string) => {
+    seen.push(String(url));
+    return new Response(JSON.stringify(realistic), { status: 200 });
+  }) as typeof fetch;
+  try {
+    const stocks = await fetchLiveStocks();
+    assert.ok(seen[0].startsWith("https://api.coinbase.com/v1/tokenized-stocks?"), seen[0]);
+    assert.ok(!seen[0].includes("/?"));
+    assert.equal(stocks.length, 3);
+    assert.equal(stocks[0].ticker, "GOOGL"); // biggest market value first
+    assert.equal(stocks[0].decimals, 8);
+    assert.equal(stocks.find((s) => s.symbol === "APPc")!.navPrice, undefined);
+    assert.equal(stocks.find((s) => s.symbol === "BRK.Bc")!.ticker, "BRK.B");
+    // Long legal descriptions must not be sent to users' phones.
+    assert.ok(JSON.stringify(stocks).length < 2000);
+  } finally {
+    globalThis.fetch = original;
+  }
+});
+
+test("a stock without a reference price is explained, not shown as $NaN", () => {
+  const closed = getMarketStatus(nyTimeToDate(2026, 11, 22, 12, 0));
+  const s = { ...SAMPLE_STOCKS[0], navPrice: undefined };
+  const text = explainStock(s, closed).join(" ");
+  assert.match(text, /hasn't published/);
+  assert.doesNotMatch(text, /NaN|undefined/);
+});

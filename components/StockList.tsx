@@ -40,7 +40,7 @@ export function StockList({ stocks, selected, onSelect }: {
                 <span className="muted small">{s.name}</span>
               </span>
               <span className="stock-price">
-                <strong>{formatUsd(s.navPrice)}</strong>
+                <strong>{s.navPrice !== undefined ? formatUsd(s.navPrice) : <span className="muted small">No price yet</span>}</strong>
                 {s.pausedFeatures.length > 0 && <span className="pill pill-warn tiny">Paused</span>}
               </span>
             </button>

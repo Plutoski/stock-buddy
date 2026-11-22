@@ -33,7 +33,6 @@ export function normalizeToken(raw: RawToken): Stock | null {
     name: raw.name || raw.symbol,
     decimals: Number(raw.decimals ?? 18),
     iconUrl: raw.icon_url || undefined,
-    description: raw.description || undefined,
     multiplier: Number.isFinite(multiplier) && multiplier > 0 ? multiplier : 1,
     navPrice: typeof raw.nav_price === "number" ? raw.nav_price : undefined,
     navPriceUpdatedAt: raw.nav_price_updated_at || undefined,
@@ -59,8 +58,9 @@ export async function fetchLiveStocks(): Promise<Stock[]> {
   for (let page = 0; page < 10; page++) {
     const params = new URLSearchParams({ page_size: "500" });
     if (pageToken) params.set("page_token", pageToken);
-    const res = await fetchWithTimeout(`${COINBASE_STOCKS_API}/?${params}`, 8000);
-    if (!res.ok) throw new Error(`Coinbase API HTTP ${res.status}`);
+    // Note: no slash before "?" — the API rejects ".../tokenized-stocks/?...".
+    const res = await fetchWithTimeout(`${COINBASE_STOCKS_API}?${params}`, 10000);
+    if (!res.ok) throw new Error(`Coinbase API HTTP ${res.status}: ${(await res.text()).slice(0, 200)}`);
     const body = (await res.json()) as { tokens?: RawToken[]; next_page_token?: string };
     for (const raw of body.tokens || []) {
       const s = normalizeToken(raw);

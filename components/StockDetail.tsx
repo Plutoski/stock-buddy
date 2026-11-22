@@ -25,8 +25,8 @@ export function StockDetail({ stock, market, liveData, onBack }: {
       <section className="card facts">
         <div className="fact">
           <span className="muted small">Official reference value</span>
-          <strong className="big">{formatUsd(stock.navPrice)}</strong>
-          <span className="muted small">per token · updated {timeAgo(stock.navPriceUpdatedAt)}</span>
+          <strong className="big">{stock.navPrice !== undefined ? formatUsd(stock.navPrice) : "Not published yet"}</strong>
+          <span className="muted small">{stock.navPrice !== undefined ? `per token · updated ${timeAgo(stock.navPriceUpdatedAt)}` : "Coinbase hasn't published one for this token"}</span>
         </div>
         <div className="fact">
           <span className="muted small">1 token equals</span>
@@ -43,7 +43,6 @@ export function StockDetail({ stock, market, liveData, onBack }: {
       <section className="card">
         <h3>In plain English</h3>
         {explainStock(stock, market).map((l, i) => <p key={i}>{l}</p>)}
-        {stock.description && <p className="muted small">About the company: {stock.description}</p>}
       </section>
 
       <div className="detail-grid">

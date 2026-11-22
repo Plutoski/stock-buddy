@@ -5,7 +5,6 @@ export interface Stock {
   name: string;
   decimals: number;
   iconUrl?: string;
-  description?: string;
   /** Shares of the real company each token stands for (changes with dividends/splits). */
   multiplier: number;
   /** Official reference value per token in USD (Chainlink-based). Not a live bid/ask. */

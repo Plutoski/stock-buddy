@@ -209,7 +209,7 @@ export function BuyPanel({ stock, liveData }: { stock: Stock; liveData: boolean 
       )}
 
       {error && <p className="error small" role="alert">{error}</p>}
-      {!BUILDER_CODE && <p className="muted tiny">Developer note: no Builder Code set, so purchases won't be attributed.</p>}
+      {!BUILDER_CODE && process.env.NODE_ENV !== "production" && <p className="muted tiny">Developer note: no Builder Code set, so purchases won't be attributed.</p>}
     </section>
   );
 }

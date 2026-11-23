@@ -4,6 +4,7 @@ import { KYBER_API, DEFAULT_SLIPPAGE_BIPS } from "@/lib/constants.ts";
 import { kyberHeaders } from "@/lib/kyber.ts";
 import { getStocks } from "@/lib/stocks.ts";
 import { USDC_ADDRESS } from "@/lib/constants.ts";
+import { storeConfigured, rememberBuilt } from "@/lib/store.ts";
 
 export const dynamic = "force-dynamic";
 
@@ -43,6 +44,8 @@ export async function POST(req: NextRequest) {
     if (!res.ok || !data?.data || !data?.routerAddress) {
       return NextResponse.json({ error: "The quote expired or couldn't be prepared. Please get a new quote." }, { status: 502 });
     }
+    // Remember this exact swap so /proof can recognise it onchain later (best effort).
+    if (storeConfigured()) await rememberBuilt(sender, data.data).catch((e) => console.error("[build] remember failed", e));
     return NextResponse.json({
       to: data.routerAddress,
       data: data.data,

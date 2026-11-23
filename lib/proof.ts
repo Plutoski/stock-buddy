@@ -44,17 +44,21 @@ function units(hexValue: string, decimals: number): number {
 }
 
 /** Checks a Base transaction and returns what Stock Buddy trade it was, if any. */
-export function verifyTrade(tx: RpcTx, receipt: RpcReceipt, stocks: Stock[], now = new Date()): ProofResult {
+export function verifyTrade(tx: RpcTx, receipt: RpcReceipt, stocks: Stock[], now = new Date(),
+  builtFor?: (wallet: string) => string[], skipSourceCheck = false): ProofResult {
   if (receipt.status !== "0x1") return { ok: false, reason: "That transaction didn't succeed." };
 
   const logs = receipt.logs || [];
   const routerLogs = logs.filter((l) => l.address.toLowerCase() === KYBER_ROUTER);
   if (!routerLogs.length) return { ok: false, reason: "That transaction isn't a KyberSwap swap." };
 
-  const tagged =
-    (tx.input || "").toLowerCase().includes(SOURCE_TAG_HEX) ||
-    logs.some((l) => (l.data || "").toLowerCase().includes(SOURCE_TAG_HEX));
-  if (!tagged) return { ok: false, reason: "That swap wasn't made through Stock Buddy." };
+  const input = (tx.input || "").toLowerCase();
+  const tagged = input.includes(SOURCE_TAG_HEX) || logs.some((l) => (l.data || "").toLowerCase().includes(SOURCE_TAG_HEX));
+  // Was this swap made through Stock Buddy? Either KyberSwap's source label is visible onchain,
+  // or the transaction contains the exact swap Stock Buddy built for this wallet.
+  const fromStockBuddy = (wallet: string) =>
+    skipSourceCheck || tagged || (builtFor?.(wallet) || []).some((c) => c.length > 64 && input.includes(c.toLowerCase().replace(/^0x/, "")));
+  const notOurs: ProofResult = { ok: false, reason: "That swap wasn't made through Stock Buddy." };
 
   const byAddress = new Map(stocks.map((s) => [s.address.toLowerCase(), s]));
   const base = { hash: receipt.transactionHash.toLowerCase(), block: Number(BigInt(receipt.blockNumber)), at: now.toISOString() };
@@ -65,6 +69,7 @@ export function verifyTrade(tx: RpcTx, receipt: RpcReceipt, stocks: Stock[], now
   if (swapped) {
     const d = swapped.data;
     const src = wordAddress(d, 1), dst = wordAddress(d, 2), receiver = wordAddress(d, 3);
+    if (!fromStockBuddy(receiver)) return notOurs;
     if (src === USDC && byAddress.has(dst)) {
       const stock = byAddress.get(dst)!;
       return { ok: true, record: { ...base, side: "buy", wallet: receiver, symbol: stock.symbol,
@@ -81,6 +86,7 @@ export function verifyTrade(tx: RpcTx, receipt: RpcReceipt, stocks: Stock[], now
   // 2. Fallback from token transfers, anchored on the signer when the wallet called the router directly.
   const transfers = logs.filter((l) => l.topics?.[0] === TRANSFER_TOPIC && l.topics.length >= 3);
   const signer = (tx.to || "").toLowerCase() === KYBER_ROUTER ? (tx.from || "").toLowerCase() : "";
+  if (signer && !fromStockBuddy(signer)) return notOurs;
   if (signer) {
     const stockIn = transfers.find((l) => byAddress.has(l.address.toLowerCase()) && topicToAddress(l.topics[2]) === signer);
     const stockOut = transfers.find((l) => byAddress.has(l.address.toLowerCase()) && topicToAddress(l.topics[1]) === signer);
@@ -105,6 +111,7 @@ export function verifyTrade(tx: RpcTx, receipt: RpcReceipt, stocks: Stock[], now
   if (!stockIn) return { ok: false, reason: "No Coinbase tokenized stock was bought or sold in that transaction." };
   const stock = byAddress.get(stockIn.address.toLowerCase())!;
   const wallet = topicToAddress(stockIn.topics[2]);
+  if (!fromStockBuddy(wallet)) return notOurs;
   const usdcOut = transfers.find((l) => l.address.toLowerCase() === USDC && topicToAddress(l.topics[1]) === wallet);
   return { ok: true, record: { ...base, side: "buy", wallet, symbol: stock.symbol,
     tokens: units(stockIn.data, stock.decimals), usdcPaid: usdcOut ? units(usdcOut.data, 6) : undefined } };

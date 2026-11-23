@@ -10,6 +10,7 @@ import { StockList } from "@/components/StockList.tsx";
 import { StockDetail } from "@/components/StockDetail.tsx";
 import { Chat } from "@/components/Chat.tsx";
 import { MyStocks } from "@/components/MyStocks.tsx";
+import { OrderContext, type PreparedOrder } from "@/components/OrderContext.tsx";
 import type { LivePrice } from "@/lib/pricing.ts";
 
 type Data = StocksResponse & { market: MarketStatus };
@@ -27,6 +28,7 @@ export default function Home() {
   });
   const [selected, setSelected] = useState<Stock | null>(null);
   const [openTab, setOpenTab] = useState<"buy" | "sell">("buy");
+  const [order, setOrder] = useState<(PreparedOrder & { n: number }) | null>(null);
 
   // Live trading prices for the biggest stocks (refreshed every 90s).
   const live = data?.source === "live";
@@ -64,15 +66,23 @@ export default function Home() {
 
   // On phones the detail view replaces the list; scroll to top when switching.
   function choose(s: Stock | null, tab: "buy" | "sell" = "buy") {
+    setOrder(null);
     setOpenTab(tab);
     setSelected(s);
     if (typeof window !== "undefined") window.scrollTo({ top: 0 });
   }
 
   const market = data?.market;
+  // The chat agent prepared an order: open that stock's Buy or Sell tab, pre-filled, quote fetched.
+  function prepare(o: PreparedOrder) {
+    setOpenTab(o.side);
+    setSelected(o.stock);
+    setOrder({ ...o, n: Date.now() });
+    if (typeof window !== "undefined") window.scrollTo({ top: 0, behavior: "smooth" });
+  }
 
   return (
-    <>
+    <OrderContext.Provider value={{ stocks: data?.stocks ?? [], market, live, prepare }}>
       <EligibilityGate />
       <header className="topbar">
         <a className="brand" href="/" onClick={(e) => { e.preventDefault(); choose(null); }}>
@@ -112,7 +122,8 @@ export default function Home() {
 
         <section className="content">
           {selected && market ? (
-            <StockDetail key={selected.address + openTab} initialTab={openTab} stock={selected} market={market} liveData={live} onBack={() => choose(null)}
+            <StockDetail key={selected.address + openTab + (order?.n ?? "")} initialTab={openTab}
+              order={order && order.stock.address === selected.address ? order : undefined} stock={selected} market={market} liveData={live} onBack={() => choose(null)}
               livePrice={priceMap.get(selected.address.toLowerCase())} priceLoading={live && (topLoading || selLoading)} />
           ) : (
             <div className="welcome">
@@ -127,6 +138,6 @@ export default function Home() {
         Stock Buddy is an educational tool, not a broker or financial adviser. Coinbase tokenized stocks are available only to eligible people outside the United States.
         Prices can go down as well as up. Built for Base Stocks Maxxing. <a href="/proof">See verified purchases</a>.
       </footer>
-    </>
+    </OrderContext.Provider>
   );
 }

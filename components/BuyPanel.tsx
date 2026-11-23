@@ -19,7 +19,7 @@ export function priceGapPct(trade: number, reference?: number): number | undefin
   return ((trade - reference) / reference) * 100;
 }
 
-export function BuyPanel({ stock, liveData }: { stock: Stock; liveData: boolean }) {
+export function BuyPanel({ stock, liveData, presetUsdc }: { stock: Stock; liveData: boolean; presetUsdc?: number }) {
   // The wallet's REAL network. (wagmi's useChainId() falls back to the app's own chain
   // when the wallet is on a network the app doesn't know, which hid the problem.)
   const { address, isConnected, chainId: walletChainId } = useAccount();
@@ -30,7 +30,8 @@ export function BuyPanel({ stock, liveData }: { stock: Stock; liveData: boolean 
     await switchChainAsync({ chainId: base.id });
   }
 
-  const [amount, setAmount] = useState("5");
+  const [amount, setAmount] = useState(presetUsdc !== undefined ? String(presetUsdc) : "5");
+  const autoQuote = useRef(presetUsdc !== undefined); // the chat agent prepared this order: fetch its quote right away
   const [quote, setQuote] = useState<Quote | null>(null);
   const [step, setStep] = useState<Step>("idle");
   const [error, setError] = useState("");
@@ -70,6 +71,12 @@ export function BuyPanel({ stock, liveData }: { stock: Stock; liveData: boolean 
     /* eslint-disable-next-line react-hooks/exhaustive-deps */
   }, [amount]);
 
+  useEffect(() => {
+    if (!autoQuote.current || !liveData || !isConnected || !onBase || step !== "idle" || quote) return;
+    autoQuote.current = false;
+    getQuote();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [liveData, isConnected, onBase, step, quote]);
   useEffect(() => { if (approveReceipt.isSuccess) { refetchAllowance(); setStep("quoted"); } }, [approveReceipt.isSuccess, refetchAllowance]);
   useEffect(() => { if (buyReceipt.isSuccess) { setStep("done"); refetchBalance(); } }, [buyReceipt.isSuccess, refetchBalance]);
   // After a successful purchase, ask the server to verify it onchain and add it to the public /proof list.

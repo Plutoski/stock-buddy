@@ -78,3 +78,19 @@ test("seller gap wording is factual, not advice", () => {
   assert.equal(sellGapSentence(0.4), undefined);
   for (const g of [3.2, -2]) assert.doesNotMatch(sellGapSentence(g)!, /should|good time|recommend/i);
 });
+
+// Without any visible source label, a trade still counts if it contains the exact swap Stock Buddy built.
+test("untagged trade is accepted when it contains the swap Stock Buddy built for that wallet", () => {
+  const built = "e21fd0e9" + "12".repeat(120);           // the calldata /api/build returned
+  const handleOps = "0x765e827f" + "00".repeat(64) + built + "00".repeat(32); // smart wallet bundle wraps it
+  const logs = [swappedLog(USDC, NVDA, SMART, 1_000_000n, 747_655n)];
+  const ok = verifyTrade(tx(handleOps), receipt(logs), stocks, new Date(), (w) => (w === SMART ? [built] : []));
+  assert.ok(ok.ok);
+  const other = verifyTrade(tx(handleOps), receipt(logs), stocks, new Date(), () => ["e21fd0e9" + "34".repeat(120)]);
+  assert.equal(other.ok, false);
+  const none = verifyTrade(tx(handleOps), receipt(logs), stocks, new Date(), () => []);
+  assert.equal(none.ok, false);
+  // the probe pass (find the wallet first) ignores the source test
+  const probe = verifyTrade(tx(handleOps), receipt(logs), stocks, new Date(), () => [], true);
+  assert.ok(probe.ok);
+});

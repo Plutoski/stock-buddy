@@ -189,7 +189,7 @@ button, input { font: inherit; color: inherit; }
 
 /* Chat */
 .chat-head { display: flex; justify-content: space-between; align-items: center; gap: 0.5rem; }
-.chat-log { display: flex; flex-direction: column; gap: 0.5rem; max-height: 360px; overflow-y: auto; margin: 0.5rem 0; padding-right: 0.25rem; }
+.chat-log { display: flex; flex-direction: column; gap: 0.5rem; max-height: 440px; overflow-y: auto; margin: 0.5rem 0; padding-right: 0.25rem; }
 .bubble { padding: 0.6rem 0.8rem; border-radius: 14px; max-width: 92%; white-space: pre-wrap; font-size: 0.95rem; }
 .bubble.user { align-self: flex-end; background: var(--primary); color: #fff; border-bottom-right-radius: 4px; }
 .bubble.assistant { align-self: flex-start; background: var(--bg); border: 1px solid var(--border); border-bottom-left-radius: 4px; }
@@ -239,3 +239,10 @@ button, input { font: inherit; color: inherit; }
 /* My stocks */
 .holdings { list-style: none; padding: 0; margin: 0.4rem 0; display: grid; grid-template-columns: minmax(0, 1fr); gap: 0.5rem; }
 .holdings li { min-width: 0; }
+
+/* Chat agent trade card */
+.trade-card { max-width: 100% !important; width: 100%; }
+.trade-card dl { display: grid; grid-template-columns: auto 1fr; gap: 0.25rem 0.8rem; margin: 0.4rem 0; font-size: 0.9rem; }
+.trade-card dt { color: var(--muted); }
+.trade-card dd { margin: 0; text-align: right; font-weight: 600; }
+.trade-card .btn { margin-top: 0.4rem; }

@@ -26,13 +26,15 @@ interface SellQuote {
 
 const fmtTokens = (n: number) => n.toLocaleString("en-US", { maximumFractionDigits: 6 });
 
-export function SellPanel({ stock, liveData }: { stock: Stock; liveData: boolean }) {
+export function SellPanel({ stock, liveData, presetFraction, presetTokens }: { stock: Stock; liveData: boolean; presetFraction?: number; presetTokens?: number }) {
   const { address, isConnected, chainId: walletChainId } = useAccount();
   const { switchChain, switchChainAsync, isPending: switching } = useSwitchChain();
   const onBase = walletChainId === base.id;
   const ensureBase = async () => { if (!onBase) await switchChainAsync({ chainId: base.id }); };
 
-  const [amount, setAmount] = useState("");
+  const [amount, setAmount] = useState(presetTokens !== undefined ? String(presetTokens) : "");
+  const preset = useRef(presetFraction !== undefined || presetTokens !== undefined);
+  const pendingFraction = useRef(presetFraction);
   const [quote, setQuote] = useState<SellQuote | null>(null);
   const [step, setStep] = useState<Step>("idle");
   const [error, setError] = useState("");
@@ -61,6 +63,20 @@ export function SellPanel({ stock, liveData }: { stock: Stock; liveData: boolean
     if (step === "quoted" || step === "quoting") { setQuote(null); setStep("idle"); }
     /* eslint-disable-next-line react-hooks/exhaustive-deps */
   }, [amount]);
+  // Orders prepared by the chat agent: fill in the amount once the balance is known, then fetch the quote.
+  useEffect(() => {
+    if (pendingFraction.current === undefined || rawBalance === undefined) return;
+    const f = pendingFraction.current; pendingFraction.current = undefined;
+    const part = f >= 1 ? rawBalance : (rawBalance * BigInt(Math.round(f * 10000))) / 10000n;
+    if (part > 0n) setAmount(formatUnits(part, stock.decimals));
+    else preset.current = false;
+  }, [rawBalance, stock.decimals]);
+  useEffect(() => {
+    if (!preset.current || pendingFraction.current !== undefined || !liveData || !isConnected || !onBase || step !== "idle" || quote || !amount) return;
+    preset.current = false;
+    getQuote();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [amount, liveData, isConnected, onBase, step, quote]);
   useEffect(() => { if (approveReceipt.isSuccess) { refetchAllowance(); setStep("quoted"); } }, [approveReceipt.isSuccess, refetchAllowance]);
   useEffect(() => {
     if (approveReceipt.isError || (approveReceipt.data && approveReceipt.data.status === "reverted")) {

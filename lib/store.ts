@@ -39,3 +39,20 @@ export async function listProofs(): Promise<ProofRecord[]> {
   }
   return out;
 }
+
+// ---- Swaps that Stock Buddy itself built ----
+// When /api/build prepares a swap, we remember its exact calldata for the sender.
+// A trade then counts as "made through Stock Buddy" if its onchain input contains that calldata
+// (for normal wallets it IS the input; for smart wallets it sits inside the bundled call).
+const builtKey = (wallet: string) => `stockbuddy:built:${wallet.toLowerCase()}`;
+
+export async function rememberBuilt(wallet: string, calldata: string): Promise<void> {
+  const key = builtKey(wallet);
+  await redis(["LPUSH", key, calldata.toLowerCase().replace(/^0x/, "")]);
+  await redis(["LTRIM", key, 0, 19]);
+  await redis(["EXPIRE", key, 172800]);
+}
+
+export async function builtFor(wallet: string): Promise<string[]> {
+  return ((await redis(["LRANGE", builtKey(wallet), 0, 19])) as string[] | null) || [];
+}

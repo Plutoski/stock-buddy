@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getStocks } from "@/lib/stocks.ts";
 import { verifyTrade, summarize, type RpcReceipt, type RpcTx } from "@/lib/proof.ts";
-import { storeConfigured, saveProof, hasProof, listProofs } from "@/lib/store.ts";
+import { storeConfigured, saveProof, hasProof, listProofs, builtFor } from "@/lib/store.ts";
 
 export const dynamic = "force-dynamic";
 
@@ -51,7 +51,10 @@ export async function POST(req: NextRequest) {
     if (!tx || !receipt) return NextResponse.json({ error: "That transaction isn't confirmed on Base yet. Try again in a minute." }, { status: 404 });
     const { stocks, source } = await getStocks();
     if (source !== "live") return NextResponse.json({ error: "Live stock data isn't available right now. Try again soon." }, { status: 503 });
-    const result = verifyTrade(tx, receipt, stocks);
+    // First find who traded (ignoring the "made through Stock Buddy" test), then check that wallet's built swaps.
+    const probe = verifyTrade(tx, receipt, stocks, new Date(), () => [], true);
+    const built = probe.ok ? await builtFor(probe.record.wallet).catch(() => [] as string[]) : [];
+    const result = verifyTrade(tx, receipt, stocks, new Date(), () => built);
     if (!result.ok) return NextResponse.json({ error: result.reason }, { status: 422 });
     await saveProof(result.record);
     return NextResponse.json({ ok: true, record: result.record });

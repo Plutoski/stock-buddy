@@ -7,7 +7,7 @@ Tokenized stocks are powerful but confusing for first-timers:
 - the official price freezes when the US market closes, while trading on Base continues 24/7,
 - costs (swap price, slippage, network fee) are invisible until it's too late.
 
-Stock Buddy shows all of this in plain English, answers questions in a chat that **explains but never advises**, and lets eligible users make a small, capped first purchase from their own wallet.
+Stock Buddy shows all of this in plain English. Its chat agent **explains and prepares trades but never advises**, and eligible users can buy (capped at $100) and sell from their own wallet.
 
 ## For judges: verify in 2 minutes
 
@@ -16,6 +16,8 @@ Stock Buddy shows all of this in plain English, answers questions in a chat that
 | Open the live app on your phone | Live list of Coinbase tokenized stocks with their reference value and multiplier |
 | Tap any stock | "In plain English" explanation, plus whether the official price is updating or frozen right now |
 | Ask "Should I buy this?" in the chat | A polite refusal to give advice, with an offer to explain instead |
+| Type "buy $5 of NVIDIA" or "sell half my Google" in the chat | The agent finds the stock, fetches a live quote, explains the price gap and market status, and prepares the order. One tap opens it pre-filled; you approve in your own wallet |
+| Connect a wallet that holds tokenized stocks | "My stocks" lists holdings in shares and dollars, with a Sell tab on every stock |
 | Ask "Why is the price different at night?" | A clear explanation of market hours and price drift |
 | Connect a wallet and tap "See what I'd get" | A quote showing the trading price vs the official reference, with a warning if they differ by 1% or more |
 | Open any purchase receipt on Basescan | Every swap goes through the KyberSwap router and is tagged with the source `stock-buddy` |

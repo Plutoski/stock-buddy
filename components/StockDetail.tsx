@@ -5,15 +5,16 @@ import type { MarketStatus } from "@/lib/market.ts";
 import { explainStock, formatUsd, sharesPerToken } from "@/lib/explain.ts";
 import { timeAgo, isOfficialPriceFrozen } from "@/lib/market.ts";
 import { useState } from "react";
+import type { PreparedOrder } from "./OrderContext.tsx";
 import { BuyPanel } from "./BuyPanel.tsx";
 import { SellPanel } from "./SellPanel.tsx";
 import { Chat } from "./Chat.tsx";
 import { StockIcon, GapPill } from "./StockList.tsx";
 import { gapSentence, type LivePrice } from "@/lib/pricing.ts";
 
-export function StockDetail({ stock, market, liveData, onBack, livePrice, priceLoading, initialTab = "buy" }: {
+export function StockDetail({ stock, market, liveData, onBack, livePrice, priceLoading, initialTab = "buy", order }: {
   stock: Stock; market: MarketStatus; liveData: boolean; onBack: () => void;
-  livePrice?: LivePrice; priceLoading?: boolean; initialTab?: "buy" | "sell";
+  livePrice?: LivePrice; priceLoading?: boolean; initialTab?: "buy" | "sell"; order?: PreparedOrder;
 }) {
   const [tab, setTab] = useState<"buy" | "sell">(initialTab);
   const frozen = isOfficialPriceFrozen(stock.navPriceUpdatedAt);
@@ -67,8 +68,9 @@ export function StockDetail({ stock, market, liveData, onBack, livePrice, priceL
             <button role="tab" aria-selected={tab === "sell"} className={`tab ${tab === "sell" ? "tab-on" : ""}`} onClick={() => setTab("sell")}>Sell</button>
           </div>
           {tab === "buy"
-            ? <BuyPanel key={stock.address} stock={stock} liveData={liveData} />
-            : <SellPanel key={stock.address} stock={stock} liveData={liveData} />}
+            ? <BuyPanel key={stock.address} stock={stock} liveData={liveData} presetUsdc={order?.side === "buy" ? order.usdc : undefined} />
+            : <SellPanel key={stock.address} stock={stock} liveData={liveData}
+                presetFraction={order?.side === "sell" ? order.fraction : undefined} presetTokens={order?.side === "sell" ? order.tokens : undefined} />}
         </div>
         <Chat stock={stock} />
       </div>

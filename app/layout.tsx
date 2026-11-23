@@ -4,7 +4,12 @@ import "@fontsource-variable/funnel-display";
 import "./globals.css";
 import { Providers } from "./providers.tsx";
 
+// Base Dashboard (dashboard.base.org) gives each registered app an ID to place in a meta tag,
+// which proves this site belongs to the registered app. Set NEXT_PUBLIC_BASE_APP_ID in Vercel.
+const BASE_APP_ID = process.env.NEXT_PUBLIC_BASE_APP_ID;
+
 export const metadata: Metadata = {
+  ...(BASE_APP_ID ? { other: { "base:app_id": BASE_APP_ID } } : {}),
   metadataBase: new URL(process.env.NEXT_PUBLIC_SITE_URL || "https://stock-buddy-gnt7.vercel.app"),
   title: "Stock Buddy: buy tokenized stocks on Base and see the price gap first",
   description:

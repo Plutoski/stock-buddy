@@ -19,7 +19,7 @@ interface ProofData {
   referredWallets?: number;
 }
 
-const short = (a: string) => `${a.slice(0, 6)}…${a.slice(-4)}`;
+const short = (a: string = "") => `${a.slice(0, 6)}…${a.slice(-4)}`;
 const money = (n: number) => n.toLocaleString("en-US", { style: "currency", currency: "USD", maximumFractionDigits: 2 });
 
 export default function ProofPage() {
@@ -35,6 +35,7 @@ export default function ProofPage() {
   });
 
   const [hashInput, setHash] = useState("");
+  const [showAll, setShowAll] = useState(false);
   // Accept a bare hash or a whole Basescan link.
   const hash = (hashInput.match(/0x[0-9a-fA-F]{64}/)?.[0] ?? hashInput).trim();
   const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null);
@@ -103,20 +104,24 @@ export default function ProofPage() {
                 ) : (
                   <div className="table-wrap">
                     <table className="proof-table">
-                      <thead><tr><th>Wallet</th><th>Type</th><th>Stock</th><th>Amount</th><th>USDC</th><th>Receipt</th></tr></thead>
+                      <thead><tr><th>Date</th><th>Wallet</th><th>Type</th><th>Stock</th><th>Amount</th><th>USDC</th><th>Receipt</th></tr></thead>
                       <tbody>
-                        {data.records.map((r) => (
+                        {data.records.slice(0, showAll ? undefined : 50).map((r) => (
                           <tr key={r.hash}>
+                            <td>{r.at && !Number.isNaN(Date.parse(r.at)) ? new Date(r.at).toLocaleDateString(undefined, { day: "numeric", month: "short" }) : "–"}</td>
                             <td className="mono">{short(r.wallet)}</td>
                             <td>{r.side === "sell" ? "Sell" : "Buy"}</td>
                             <td>{r.symbol}</td>
-                            <td>{r.tokens.toLocaleString("en-US", { maximumFractionDigits: 6 })}</td>
+                            <td>{Number(r.tokens ?? 0).toLocaleString("en-US", { maximumFractionDigits: 6 })}</td>
                             <td>{r.side === "sell" ? (r.usdcReceived !== undefined ? money(r.usdcReceived) : "–") : (r.usdcPaid !== undefined ? money(r.usdcPaid) : "–")}</td>
                             <td><a href={BASESCAN_TX + r.hash} target="_blank" rel="noreferrer">Basescan</a></td>
                           </tr>
                         ))}
                       </tbody>
                     </table>
+                    {data.records.length > 50 && !showAll && (
+                      <button className="btn btn-ghost" style={{ marginTop: "0.75rem" }} onClick={() => setShowAll(true)}>Show all {data.records.length} trades</button>
+                    )}
                   </div>
                 )}
               </section>

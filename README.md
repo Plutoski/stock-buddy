@@ -84,6 +84,7 @@ npm test                     # run the automated tests
 | `NEXT_PUBLIC_BUILDER_CODE` | No | A Base Builder Code (ERC-8021). Not set in the live app |
 | `NEXT_PUBLIC_SITE_URL` | No | The public address used in link previews. Defaults to the live app |
 | `GITHUB_TOKEN` | No | Raises GitHub's rate limit for `/log`. The page works without it |
+| `NEXT_PUBLIC_BASE_APP_ID` | No | The app ID from the Base Dashboard. Adds the `base:app_id` meta tag that proves the site belongs to the registered app |
 | `USE_SAMPLE_DATA` | No | Set to `1` to use sample data without a network |
 
 ## Disclaimer

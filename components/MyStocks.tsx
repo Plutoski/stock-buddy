@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from "react";
 import { erc20Abi, formatUnits } from "viem";
 import { base } from "wagmi/chains";
 import { useAccount, useReadContracts } from "wagmi";
@@ -37,6 +38,7 @@ const fmtAmount = (n: number) => n > 0 && n < 0.0001 ? "<0.0001" : n.toLocaleStr
 export function MyStocks({ stocks, prices, onOpen }: { stocks: Stock[]; prices: Map<string, LivePrice>; onOpen: (s: Stock) => void }) {
   const { isConnected } = useAccount();
   const { holdings, loading, failed, refetch } = useHoldings(stocks, prices);
+  const [showAll, setShowAll] = useState(false);
   if (!isConnected) return null;
   const total = holdings.reduce((sum, h) => sum + (h.value ?? 0), 0);
 
@@ -44,7 +46,7 @@ export function MyStocks({ stocks, prices, onOpen }: { stocks: Stock[]; prices: 
     <section className="card" aria-label="My stocks">
       <div className="chat-head">
         <h3>My stocks</h3>
-        {holdings.length > 0 && <span className="muted small">≈ {formatUsd(total)}</span>}
+        {holdings.length > 0 && <span className="muted small">{total > 0 && total < 0.01 ? "under $0.01" : `about ${formatUsd(total)}`}</span>}
       </div>
       {loading && <p className="muted small">Checking your wallet…</p>}
       {!loading && failed && holdings.length === 0 && (
@@ -53,7 +55,7 @@ export function MyStocks({ stocks, prices, onOpen }: { stocks: Stock[]; prices: 
       {!loading && !failed && holdings.length === 0 && <p className="muted small">No tokenized stocks in this wallet yet. Pick a company to buy your first one.</p>}
       {holdings.length > 0 && (
         <ul className="holdings">
-          {holdings.map((h) => (
+          {holdings.slice(0, showAll ? undefined : 6).map((h) => (
             <li key={h.stock.address}>
               <button className="stock-row" onClick={() => onOpen(h.stock)}>
                 <StockIcon stock={h.stock} />
@@ -66,6 +68,9 @@ export function MyStocks({ stocks, prices, onOpen }: { stocks: Stock[]; prices: 
             </li>
           ))}
         </ul>
+      )}
+      {holdings.length > 6 && !showAll && (
+        <button className="btn btn-link" onClick={() => setShowAll(true)}>Show all {holdings.length} stocks</button>
       )}
       <p className="muted tiny">Values use the live trading price on Base, or the official price if there&apos;s no live price.</p>
     </section>

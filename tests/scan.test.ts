@@ -91,3 +91,9 @@ test("daily stats: trades per UTC day and each wallet counted as new once, on it
     { day: "2026-11-23", trades: 2, newWallets: 1 },
   ]);
 });
+
+test("daily stats: records with a missing or broken date are skipped, not fatal", async () => {
+  const { dailyStats } = await import("../lib/daily.ts");
+  const s = dailyStats([{ wallet: "a" } as never, { wallet: "b", at: 12 } as never, { wallet: "c", at: "2026-11-23T01:00:00Z" }], 1, new Date("2026-11-23T12:00:00Z"));
+  assert.deepEqual(s, [{ day: "2026-11-23", trades: 1, newWallets: 1 }]);
+});

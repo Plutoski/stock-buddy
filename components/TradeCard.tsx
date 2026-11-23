@@ -65,7 +65,7 @@ export function TradeCard({ intent }: { intent: TradeIntent }) {
             <dt>That&apos;s roughly</dt><dd>{(quote.amountOutTokens * s.multiplier).toLocaleString("en-US", { maximumFractionDigits: 6 })} {s.ticker} shares</dd>
             <dt>Trading price</dt><dd>{formatUsd(quote.pricePerToken)}</dd>
             <dt>Official price</dt><dd>{formatUsd(s.navPrice)}{frozen ? " (frozen)" : ""}</dd>
-            {quote.gasUsd !== undefined && (<><dt>Network fee</dt><dd>≈ {formatUsd(quote.gasUsd)}</dd></>)}
+            {quote.gasUsd !== undefined && (<><dt>Network fee</dt><dd>{quote.gasUsd < 0.01 ? "under 1¢" : `≈ ${formatUsd(quote.gasUsd)}`}</dd></>)}
           </dl>
         )}
         {quote && gapSentence(gap, !frozen) && <p className="small">{gapSentence(gap, !frozen)}</p>}

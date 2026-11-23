@@ -3,7 +3,7 @@ import { isAddress } from "viem";
 import { KYBER_API, DEFAULT_SLIPPAGE_BIPS } from "@/lib/constants.ts";
 import { kyberHeaders } from "@/lib/kyber.ts";
 import { getStocks } from "@/lib/stocks.ts";
-import { USDC_ADDRESS } from "@/lib/constants.ts";
+import { USDC_ADDRESS, MIN_BUY_USDC, MAX_BUY_USDC } from "@/lib/constants.ts";
 import { storeConfigured, rememberBuilt } from "@/lib/store.ts";
 
 export const dynamic = "force-dynamic";
@@ -17,7 +17,10 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Missing quote or wallet address." }, { status: 400 });
   }
   // Only build swaps between USDC and a token on Coinbase's official list.
-  const rs = body.routeSummary as { tokenIn?: string; tokenOut?: string };
+  const rs = body.routeSummary as { tokenIn?: unknown; tokenOut?: unknown; amountIn?: unknown };
+  if (typeof rs.tokenIn !== "string" || typeof rs.tokenOut !== "string" || typeof rs.amountIn !== "string" || !/^\d{1,40}$/.test(rs.amountIn)) {
+    return NextResponse.json({ error: "That quote looks wrong. Please get a new quote." }, { status: 400 });
+  }
   const { stocks, source } = await getStocks();
   const isStock = (a: unknown) => stocks.some((s) => s.address.toLowerCase() === String(a || "").toLowerCase());
   const isUsdc = (a: unknown) => String(a || "").toLowerCase() === USDC_ADDRESS.toLowerCase();
@@ -25,6 +28,13 @@ export async function POST(req: NextRequest) {
   const allowed = source === "live" && ((isUsdc(rs.tokenIn) && isStock(rs.tokenOut)) || (isStock(rs.tokenIn) && isUsdc(rs.tokenOut)));
   if (!allowed) {
     return NextResponse.json({ error: "That swap isn't allowed. Please get a new quote." }, { status: 400 });
+  }
+  // Purchases stay within Stock Buddy's $1–$100 range on the server too (USDC has 6 decimals).
+  if (isUsdc(rs.tokenIn)) {
+    const usdc = Number(BigInt(rs.amountIn)) / 1e6;
+    if (usdc < MIN_BUY_USDC || usdc > MAX_BUY_USDC) {
+      return NextResponse.json({ error: `Purchases are between $${MIN_BUY_USDC} and $${MAX_BUY_USDC}.` }, { status: 400 });
+    }
   }
   try {
     const res = await fetch(`${KYBER_API}/route/build`, {
@@ -35,7 +45,7 @@ export async function POST(req: NextRequest) {
         sender,
         recipient: sender, // tokens always go back to the user's own wallet
         slippageTolerance: DEFAULT_SLIPPAGE_BIPS,
-        source: process.env.KYBER_CLIENT_ID || "stock-buddy",
+        source: "stock-buddy", // must match SOURCE_TAG_HEX in lib/proof.ts (the client id goes in the header)
       }),
       cache: "no-store",
     });

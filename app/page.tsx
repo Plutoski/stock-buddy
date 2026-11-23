@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import type { Stock, StocksResponse } from "@/lib/types.ts";
 import type { MarketStatus } from "@/lib/market.ts";
@@ -33,7 +33,7 @@ export default function Home() {
   // Live trading prices for the biggest stocks (refreshed every 90s).
   const live = data?.source === "live";
   const fetchPrices = async (url: string): Promise<{ prices: LivePrice[] }> => {
-    const res = await fetch(url, { signal: AbortSignal.timeout(25_000) });
+    const res = await fetch(url, { signal: AbortSignal.timeout(12_000) });
     const body = await res.json().catch(() => null);
     if (!res.ok || !body || !Array.isArray(body.prices)) throw new Error("prices unavailable");
     return { prices: body.prices.filter((p: LivePrice) => p && typeof p.address === "string" && Number.isFinite(p.tradingPrice)) };
@@ -42,6 +42,7 @@ export default function Home() {
     queryKey: ["prices", "top"],
     queryFn: () => fetchPrices("/api/prices"),
     enabled: live,
+    retry: 1,
     refetchInterval: 90_000,
   });
   // Plus the selected stock, if it isn't one of the top ones.
@@ -51,6 +52,7 @@ export default function Home() {
     queryKey: ["prices", selectedAddr],
     queryFn: () => fetchPrices(`/api/prices?tokens=${selectedAddr}`),
     enabled: live && !!selectedAddr && !topLoading && !inTop,
+    retry: 1,
     refetchInterval: 90_000,
   });
   const priceMap = new Map<string, LivePrice>();
@@ -74,11 +76,14 @@ export default function Home() {
 
   const market = data?.market;
   // The chat agent prepared an order: open that stock's Buy or Sell tab, pre-filled, quote fetched.
+  const lastPrepare = useRef(0);
   function prepare(o: PreparedOrder) {
+    // A double tap on "Review" must not land a second click on the panel that just opened.
+    if (Date.now() - lastPrepare.current < 800) return;
+    lastPrepare.current = Date.now();
     setOpenTab(o.side);
     setSelected(o.stock);
-    setOrder({ ...o, n: Date.now() });
-    if (typeof window !== "undefined") window.scrollTo({ top: 0, behavior: "smooth" });
+    setOrder({ ...o, n: Date.now() }); // the stock page scrolls to the prepared order itself
   }
 
   return (
@@ -136,7 +141,7 @@ export default function Home() {
 
       <footer className="footer muted small">
         Stock Buddy is an educational tool, not a broker or financial adviser. Coinbase tokenized stocks are available only to eligible people outside the United States.
-        Prices can go down as well as up. Built for Base Stocks Maxxing. <a href="/proof">See verified purchases</a>.
+        Prices can go down as well as up. Built for Base Stocks Maxxing. <a href="/proof">See verified trades</a>.
       </footer>
     </OrderContext.Provider>
   );

@@ -46,3 +46,20 @@ test("finds stocks by ticker, symbol, alias or company name", () => {
   assert.equal(findStock("alphabet", stocks)?.ticker, "GOOGL");
   assert.equal(findStock("brk.b", stocks)?.ticker, "BRK.B");
 });
+
+test("round 2: amounts, percent, English-word tickers and the stock on screen", () => {
+  const mk = (t: string, n: string) => ({ ticker: t, symbol: t + "c", name: n, address: "0x" + t, decimals: 8, multiplier: 1, pausedFeatures: [] });
+  const S = [...stocks, mk("YOU", "Clear Secure"), mk("IT", "Gartner"), mk("ALL", "Allstate")] as unknown as typeof stocks;
+  const nv = S.find((s) => s.ticker === "NVDA")!;
+  const f = (t: string, ctx?: typeof nv) => { const r = parseTradeIntent(t, S, ctx); return r ? `${r.side}:${"stock" in r ? r.stock.ticker : ""}:${r.side === "buy" ? r.usdc : r.side === "sell" ? (r.fraction ?? "t" + r.tokens) : ""}` : "null"; };
+  assert.equal(f("sell 25 percent of nvidia"), "sell:NVDA:0.25");
+  assert.equal(f("sell $5 of nvidia"), "missing-amount:NVDA:");
+  assert.equal(f("sell 150% of nvidia"), "missing-amount:NVDA:");
+  assert.equal(f("buy $1,000 of nvda"), "buy:NVDA:1000");
+  assert.equal(f("buy $5 of whatever you like").startsWith("buy:YOU"), false);
+  assert.equal(f("buy $5 of IT"), "buy:IT:5");
+  assert.equal(f("SELL ALL MY NVDA"), "sell:NVDA:1");
+  assert.equal(f("buy $5 of it", nv), "buy:NVDA:5");
+  assert.equal(f("sell everything", nv), "sell:NVDA:1");
+  assert.equal(f("buy $5 of zzzcorp", nv), "unknown-stock::");
+});

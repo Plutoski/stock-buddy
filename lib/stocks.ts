@@ -1,6 +1,7 @@
 import type { Stock, StocksResponse } from "./types.ts";
 import { COINBASE_STOCKS_API } from "./constants.ts";
 import { SAMPLE_STOCKS } from "./sample.ts";
+import { storeConfigured, saveStockList, loadStockList } from "./store.ts";
 
 interface RawToken {
   contract_address?: string;
@@ -78,6 +79,7 @@ let cache: { at: number; data: StocksResponse } | null = null;
 let inflight: Promise<StocksResponse> | null = null;
 const FRESH_MS = 60_000;
 const STALE_OK_MS = 30 * 60_000; // keep using the last good list for up to 30 min if Coinbase blips
+let savedAt = 0;
 
 export async function getStocks(): Promise<StocksResponse> {
   if (process.env.USE_SAMPLE_DATA === "1") return sample("Sample mode is switched on.");
@@ -85,13 +87,30 @@ export async function getStocks(): Promise<StocksResponse> {
   if (inflight) return inflight; // many visitors at once share one Coinbase request
   inflight = (async () => {
     try {
-      const stocks = await fetchLiveStocks();
+      let stocks: Stock[];
+      try { stocks = await fetchLiveStocks(); }
+      catch { await new Promise((r) => setTimeout(r, 400)); stocks = await fetchLiveStocks(); } // one retry for a blip
       const data: StocksResponse = { source: "live", fetchedAt: new Date().toISOString(), stocks };
       cache = { at: Date.now(), data };
+      // Keep a copy in storage (at most every 10 min) so a fresh server can use it if Coinbase is unreachable.
+      if (storeConfigured() && Date.now() - savedAt > 10 * 60_000) {
+        savedAt = Date.now();
+        saveStockList(JSON.stringify(data)).catch((e) => console.error("[stocks] save failed", e));
+      }
       return data;
     } catch (err) {
       console.error("[stocks] live fetch failed:", err);
       if (cache && Date.now() - cache.at < STALE_OK_MS) return cache.data; // last good live data
+      if (storeConfigured()) {
+        try {
+          const saved = await loadStockList();
+          const data = saved ? (JSON.parse(saved) as StocksResponse) : null;
+          if (data?.source === "live" && Array.isArray(data.stocks) && data.stocks.length) {
+            cache = { at: Date.now() - FRESH_MS + 15_000, data }; // retry Coinbase again in ~15 s
+            return data;
+          }
+        } catch (e) { console.error("[stocks] stored list unavailable", e); }
+      }
       return sample("Live data couldn't be reached, so this is sample data. Purchases are switched off.");
     } finally {
       inflight = null;

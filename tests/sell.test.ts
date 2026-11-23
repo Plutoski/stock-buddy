@@ -94,3 +94,19 @@ test("untagged trade is accepted when it contains the swap Stock Buddy built for
   const probe = verifyTrade(tx(handleOps), receipt(logs), stocks, new Date(), () => [], true);
   assert.ok(probe.ok);
 });
+
+test("rejected: a swap paid out to a different wallet than the one that made it", () => {
+  const ATTACKER = "0xa77ac00000000000000000000000000000000001";
+  const FRESH = "0xf2e5000000000000000000000000000000000002";
+  const log = swappedLog(USDC, NVDA, FRESH, 10_000n, 7_000n);
+  log.data = "0x" + w(ATTACKER) + log.data.slice(2 + 64);
+  const r = verifyTrade(tx(tagged), receipt([log]), stocks);
+  assert.equal(r.ok, false);
+});
+
+test("rejected: the label hidden in a log from some other contract", () => {
+  const plain = "0x765e827f" + "00".repeat(60);
+  const fake = { address: "0x1234000000000000000000000000000000000000", topics: ["0xc0ffee"], data: "0x" + SOURCE_TAG_HEX };
+  const r = verifyTrade(tx(plain), receipt([swappedLog(USDC, NVDA, SMART, 1_000_000n, 747_655n), fake]), stocks);
+  assert.equal(r.ok, false);
+});

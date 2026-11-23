@@ -9,6 +9,7 @@ const ADVICE_PATTERNS = [
   /\bshould (i|we|you)\b.{0,25}\b(buy|sell|invest|hold|get|keep|dump)\b/i,
   /\b(would|do) you\b.{0,20}\b(buy|sell|invest|hold|recommend|suggest|pick)\b/i,
   /\bwhat would you do\b/i,
+  /\b(what|whatever|something|anything|whichever|which one)\b.{0,15}\byou\b.{0,15}\b(like|pick|buy|think|choose|prefer|recommend|would|want)\b/i,
   /\b(recommend|recommendation|suggest)\w*\b/i,
   /\b(is|are|it'?s)\b.{0,30}\b(a )?(good|smart|wise|safe|bad) (buy|investment|time|idea|bet|deal)\b/i,
   /\b(smart|wise|good idea) to (buy|sell|invest)\b/i,

@@ -4,7 +4,7 @@ import type { Stock } from "@/lib/types.ts";
 import type { MarketStatus } from "@/lib/market.ts";
 import { explainStock, formatUsd, sharesPerToken } from "@/lib/explain.ts";
 import { timeAgo, isOfficialPriceFrozen } from "@/lib/market.ts";
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import type { PreparedOrder } from "./OrderContext.tsx";
 import { BuyPanel } from "./BuyPanel.tsx";
 import { SellPanel } from "./SellPanel.tsx";
@@ -17,6 +17,16 @@ export function StockDetail({ stock, market, liveData, onBack, livePrice, priceL
   livePrice?: LivePrice; priceLoading?: boolean; initialTab?: "buy" | "sell"; order?: PreparedOrder;
 }) {
   const [tab, setTab] = useState<"buy" | "sell">(initialTab);
+  const tradeRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (!order) return;
+    const reduce = typeof window !== "undefined" && window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
+    const t = setTimeout(() => {
+      tradeRef.current?.scrollIntoView({ behavior: reduce ? "auto" : "smooth", block: "start" });
+      tradeRef.current?.focus({ preventScroll: true }); // keyboard users land on the order too
+    }, 50);
+    return () => clearTimeout(t);
+  }, [order]);
   const frozen = isOfficialPriceFrozen(stock.navPriceUpdatedAt);
   const gapText = gapSentence(livePrice?.gapPct, !frozen);
   return (
@@ -32,7 +42,7 @@ export function StockDetail({ stock, market, liveData, onBack, livePrice, priceL
 
       <section className="card facts">
         <div className="fact">
-          <span className="muted small">Official reference value</span>
+          <span className="muted small">Official price</span>
           <strong className="big">{stock.navPrice !== undefined ? formatUsd(stock.navPrice) : "Not published yet"}</strong>
           <span className="muted small">{stock.navPrice !== undefined ? `per token · updated ${timeAgo(stock.navPriceUpdatedAt)}` : "Coinbase hasn't published one for this token"}</span>
         </div>
@@ -62,7 +72,14 @@ export function StockDetail({ stock, market, liveData, onBack, livePrice, priceL
       </section>
 
       <div className="detail-grid">
-        <div>
+        <div ref={tradeRef} tabIndex={-1} style={{ scrollMarginTop: 84, outline: "none" }}>
+          {order && (
+            <p className="prepared" role="status">
+              Prepared by Stock Buddy: {order.side === "buy"
+                ? `buy $${order.usdc} of ${stock.ticker}`
+                : `sell ${order.fraction !== undefined ? (order.fraction === 1 ? "all" : `${Math.round(order.fraction * 100)}%`) : order.tokens} of your ${stock.symbol}`}. Check the quote, then approve in your wallet.
+            </p>
+          )}
           <div className="tabs" role="tablist" aria-label="Buy or sell">
             <button role="tab" aria-selected={tab === "buy"} className={`tab ${tab === "buy" ? "tab-on" : ""}`} onClick={() => setTab("buy")}>Buy</button>
             <button role="tab" aria-selected={tab === "sell"} className={`tab ${tab === "sell" ? "tab-on" : ""}`} onClick={() => setTab("sell")}>Sell</button>

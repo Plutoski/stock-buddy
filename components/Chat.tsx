@@ -50,7 +50,7 @@ export function Chat({ stock }: { stock?: Stock }) {
     // Trade requests ("buy $5 of NVIDIA", "sell half my google") are handled right here:
     // the agent researches a live quote and prepares the order. Advice questions never get here.
     if (!isAdviceQuestion(q)) {
-      const intent = parseTradeIntent(q, stocks);
+      const intent = parseTradeIntent(q, stocks, stock);
       if (intent) {
         setMessages([...next, { role: "assistant", content: `[prepared ${intent.side} order]`, intent }]);
         setMode("agent");

@@ -73,10 +73,14 @@ export function SellPanel({ stock, liveData, presetFraction, presetTokens }: { s
   }, [rawBalance, stock.decimals]);
   useEffect(() => {
     if (!preset.current || pendingFraction.current !== undefined || !liveData || !isConnected || !onBase || step !== "idle" || quote || !amount) return;
+    if (rawBalance === undefined) return; // wait for the balance so we never quote more than the user holds
     preset.current = false;
+    let want = 0n;
+    try { want = parseUnits(amount, stock.decimals); } catch { return; }
+    if (want <= 0n || want > rawBalance) return; // the panel shows "That's more than you hold."
     getQuote();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [amount, liveData, isConnected, onBase, step, quote]);
+  }, [amount, liveData, isConnected, onBase, step, quote, rawBalance]);
   useEffect(() => { if (approveReceipt.isSuccess) { refetchAllowance(); setStep("quoted"); } }, [approveReceipt.isSuccess, refetchAllowance]);
   useEffect(() => {
     if (approveReceipt.isError || (approveReceipt.data && approveReceipt.data.status === "reverted")) {
@@ -133,6 +137,7 @@ export function SellPanel({ stock, liveData, presetFraction, presetTokens }: { s
   }
 
   async function getQuote() {
+    if (!amountValid) return;
     const seq = ++quoteSeq.current;
     setError(""); setQuote(null); setStep("quoting");
     try {
@@ -152,7 +157,7 @@ export function SellPanel({ stock, liveData, presetFraction, presetTokens }: { s
   }
 
   async function approve() {
-    if (!quote || busy.current) return;
+    if (!quote || busy.current || tooMuch) return;
     busy.current = true; setError(""); setStep("approving");
     try {
       await ensureBase();
@@ -165,7 +170,7 @@ export function SellPanel({ stock, liveData, presetFraction, presetTokens }: { s
   }
 
   async function sell() {
-    if (!quote || !address || busy.current) return;
+    if (!quote || !address || busy.current || tooMuch) return;
     busy.current = true; setError(""); setStep("building");
     try {
       const res = await fetch("/api/build", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ routeSummary: quote.routeSummary, sender: address }) });
@@ -232,8 +237,8 @@ export function SellPanel({ stock, liveData, presetFraction, presetTokens }: { s
                 <dt>You sell</dt><dd>{fmtTokens(quote.tokensIn)} {stock.symbol}</dd>
                 <dt>You get (about)</dt><dd>{formatUsd(quote.usdcOut)} USDC</dd>
                 <dt>Price per token</dt><dd>{formatUsd(quote.pricePerToken)}</dd>
-                <dt>Official reference</dt><dd>{formatUsd(stock.navPrice)} per token</dd>
-                {quote.gasUsd !== undefined && (<><dt>Network fee (est.)</dt><dd>{formatUsd(quote.gasUsd)}</dd></>)}
+                <dt>Official price</dt><dd>{formatUsd(stock.navPrice)} per token</dd>
+                {quote.gasUsd !== undefined && (<><dt>Network fee (est.)</dt><dd>{quote.gasUsd < 0.01 ? "under 1¢" : formatUsd(quote.gasUsd)}</dd></>)}
               </dl>
               {gapText && <p className="warn small">{gapText}</p>}
               <p className="muted small">Max price movement allowed: 0.5%. If the price moves more, the sale cancels and you keep your tokens.</p>
@@ -242,11 +247,11 @@ export function SellPanel({ stock, liveData, presetFraction, presetTokens }: { s
                 <span>I&apos;ve read the quote. I understand this isn&apos;t advice.</span>
               </label>
               {needsApproval ? (
-                <button className="btn btn-primary btn-block" onClick={approve} disabled={!agree || step === "approving"}>
+                <button className="btn btn-primary btn-block" onClick={approve} disabled={!agree || tooMuch || step === "approving"}>
                   {step === "approving" ? (approveHash ? "Waiting for confirmation…" : "Check your wallet…") : `Step 1 of 2: Let the swap use ${fmtTokens(quote.tokensIn)} ${stock.symbol}`}
                 </button>
               ) : (
-                <button className="btn btn-primary btn-block" onClick={sell} disabled={!agree || step === "building" || step === "selling"}>
+                <button className="btn btn-primary btn-block" onClick={sell} disabled={!agree || tooMuch || step === "building" || step === "selling"}>
                   {step === "building" ? "Preparing…" : step === "selling" ? (txHash ? "Confirming on Base…" : "Check your wallet…") : `${approveHash ? "Step 2 of 2: " : ""}Sell for ${formatUsd(quote.usdcOut)} USDC`}
                 </button>
               )}

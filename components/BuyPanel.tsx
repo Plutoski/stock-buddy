@@ -278,8 +278,8 @@ export function BuyPanel({ stock, liveData, presetUsdc }: { stock: Stock; liveDa
                 <dt>You get (about)</dt><dd>{quote.amountOutTokens.toLocaleString("en-US", { maximumFractionDigits: 6 })} {stock.symbol}</dd>
                 <dt>That's roughly</dt><dd>{(quote.amountOutTokens * stock.multiplier).toLocaleString("en-US", { maximumFractionDigits: 6 })} {stock.ticker} shares</dd>
                 <dt>Trading price now</dt><dd>{formatUsd(quote.pricePerToken)} per token</dd>
-                <dt>Official reference</dt><dd>{formatUsd(stock.navPrice)} per token</dd>
-                {quote.gasUsd !== undefined && (<><dt>Network fee (est.)</dt><dd>{formatUsd(quote.gasUsd)}</dd></>)}
+                <dt>Official price</dt><dd>{formatUsd(stock.navPrice)} per token</dd>
+                {quote.gasUsd !== undefined && (<><dt>Network fee (est.)</dt><dd>{quote.gasUsd < 0.01 ? "under 1¢" : formatUsd(quote.gasUsd)}</dd></>)}
               </dl>
               {gap !== undefined && Math.abs(gap) >= 1 && (
                 <p className="warn small">

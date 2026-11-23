@@ -3,7 +3,8 @@
 //   1. it succeeded,
 //   2. the KyberSwap router took part,
 //   3. a Coinbase tokenized stock was transferred to the buyer,
-//   4. it carries the "stock-buddy" source label that Stock Buddy sends to KyberSwap.
+//   4. it carries the "stock-buddy" source label, or contains the exact swap Stock Buddy built for that wallet,
+//   5. the swap paid out to the same wallet that made it.
 // Nothing here trusts the browser: the server reads the transaction from Base.
 
 import type { Stock } from "./types.ts";
@@ -53,11 +54,14 @@ export function verifyTrade(tx: RpcTx, receipt: RpcReceipt, stocks: Stock[], now
   if (!routerLogs.length) return { ok: false, reason: "That transaction isn't a KyberSwap swap." };
 
   const input = (tx.input || "").toLowerCase();
-  const tagged = input.includes(SOURCE_TAG_HEX) || logs.some((l) => (l.data || "").toLowerCase().includes(SOURCE_TAG_HEX));
+  // The label counts in the transaction input or in the router's own events (KyberSwap logs its
+  // client data); never in other logs, which any contract the sender controls could write.
+  const tagged = input.includes(SOURCE_TAG_HEX) || routerLogs.some((l) => (l.data || "").toLowerCase().includes(SOURCE_TAG_HEX));
   // Was this swap made through Stock Buddy? Either KyberSwap's source label is visible onchain,
   // or the transaction contains the exact swap Stock Buddy built for this wallet.
-  const fromStockBuddy = (wallet: string) =>
-    skipSourceCheck || tagged || (builtFor?.(wallet) || []).some((c) => c.length > 64 && input.includes(c.toLowerCase().replace(/^0x/, "")));
+  const builtMatch = (wallet: string) =>
+    (builtFor?.(wallet) || []).some((c) => c.length > 64 && input.includes(c.toLowerCase().replace(/^0x/, "")));
+  const fromStockBuddy = (wallet: string) => skipSourceCheck || tagged || builtMatch(wallet);
   const notOurs: ProofResult = { ok: false, reason: "That swap wasn't made through Stock Buddy." };
 
   const byAddress = new Map(stocks.map((s) => [s.address.toLowerCase(), s]));
@@ -68,7 +72,10 @@ export function verifyTrade(tx: RpcTx, receipt: RpcReceipt, stocks: Stock[], now
   const swapped = routerLogs.find((l) => l.topics?.[0] === SWAPPED_TOPIC && (l.data || "").length >= 2 + 6 * 64);
   if (swapped) {
     const d = swapped.data;
-    const src = wordAddress(d, 1), dst = wordAddress(d, 2), receiver = wordAddress(d, 3);
+    const sender = wordAddress(d, 0), src = wordAddress(d, 1), dst = wordAddress(d, 2), receiver = wordAddress(d, 3);
+    // Stock Buddy always swaps to the wallet that sent the swap. A swap paid out to some other
+    // address isn't ours, and would otherwise let one wallet pose as many.
+    if (sender !== receiver) return { ok: false, reason: "That swap paid out to a different wallet." };
     if (!fromStockBuddy(receiver)) return notOurs;
     if (src === USDC && byAddress.has(dst)) {
       const stock = byAddress.get(dst)!;
@@ -111,7 +118,9 @@ export function verifyTrade(tx: RpcTx, receipt: RpcReceipt, stocks: Stock[], now
   if (!stockIn) return { ok: false, reason: "No Coinbase tokenized stock was bought or sold in that transaction." };
   const stock = byAddress.get(stockIn.address.toLowerCase())!;
   const wallet = topicToAddress(stockIn.topics[2]);
-  if (!fromStockBuddy(wallet)) return notOurs;
+  // Without a Swapped event the receiver can't be tied to the sender, so only the exact
+  // swap Stock Buddy built for this wallet counts here.
+  if (!skipSourceCheck && !builtMatch(wallet)) return notOurs;
   const usdcOut = transfers.find((l) => l.address.toLowerCase() === USDC && topicToAddress(l.topics[1]) === wallet);
   return { ok: true, record: { ...base, side: "buy", wallet, symbol: stock.symbol,
     tokens: units(stockIn.data, stock.decimals), usdcPaid: usdcOut ? units(usdcOut.data, 6) : undefined } };

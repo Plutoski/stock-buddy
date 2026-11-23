@@ -203,7 +203,7 @@ test("a Coinbase blip keeps serving the last good live list instead of switching
     Date.now = () => realNow() + 61_000; // cache is no longer fresh
     const second = await getStocks();
     assert.equal(second.source, "live", "should keep the last good live data");
-    assert.equal(calls, 2);
+    assert.equal(calls, 3); // first fetch, then one failed try plus one retry
   } finally {
     globalThis.fetch = original; Date.now = realNow;
   }

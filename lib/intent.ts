@@ -20,15 +20,28 @@ const ALIASES: Record<string, string> = {
 
 const WORDS: Record<string, number> = { one: 1, two: 2, three: 3, five: 5, ten: 10, twenty: 20, "twenty five": 25, fifty: 50, hundred: 100, "a hundred": 100, "one hundred": 100 };
 
-const STOP = new Set(["buy", "sell", "get", "purchase", "some", "of", "my", "the", "worth", "usdc", "usd", "dollars", "dollar", "bucks", "shares", "share", "stock", "stocks", "token", "tokens", "all", "half", "please", "for", "me", "i", "want", "to", "a", "an", "in", "and", "now", "quarter", "percent"]);
+const STOP = new Set(["buy", "sell", "get", "purchase", "some", "of", "my", "the", "worth", "usdc", "usd", "dollars", "dollar", "bucks", "shares", "share", "stock", "stocks", "token", "tokens", "all", "half", "please", "for", "me", "i", "want", "to", "a", "an", "in", "and", "now", "quarter", "percent", "everything", "entire", "position", "holdings", "them", "it", "this", "one", "on", "at", "price", "market"]);
 
-export function findStock(text: string, stocks: Stock[]): Stock | undefined {
-  const words = text.toLowerCase().replace(/[^a-z0-9.\s]/g, " ").split(/\s+/).filter(Boolean);
+// Some tickers are everyday English words ("buy $5 of it", "sell on monday", "whatever you like").
+// Typed in lower case these are read as words; "IT", "$IT" or "ITc" still find the stock.
+const COMMON_WORDS = new Set(["it", "you", "on", "all", "now", "ai", "open", "be", "u", "w", "v", "s", "are", "go", "so",
+  "see", "one", "big", "fun", "key", "life", "love", "run", "low", "cash", "good", "best", "well", "next", "real", "safe",
+  "free", "home", "hope", "joy", "fast", "fly", "game", "glad", "max", "net", "new", "nice", "pay", "play", "plus", "pro",
+  "ride", "save", "spot", "sun", "team", "true", "turn", "wash", "way", "win", "what", "any", "this", "that", "them", "your",
+  "with", "at", "by", "or", "if", "is", "am", "do", "has", "can", "dog", "car", "tv", "hd", "eat", "zip", "pick", "like"]);
+
+export function findStock(text: string, stocks: Stock[], contextStock?: Stock): Stock | undefined {
+  const raw = text.replace(/[^A-Za-z0-9.$\s]/g, " ").split(/\s+/).filter(Boolean);
+  const words = raw.map((w) => w.replace(/^\$/, "").toLowerCase());
+  const shouting = text === text.toUpperCase(); // "SELL ALL MY TSLA": capitals tell us nothing
   const byTicker = new Map(stocks.map((s) => [s.ticker.toUpperCase(), s]));
   const bySymbol = new Map(stocks.map((s) => [s.symbol.toUpperCase(), s]));
-  for (const w of words) {
-    if (STOP.has(w)) continue;
+  for (let i = 0; i < words.length; i++) {
+    const w = words[i];
     const up = w.toUpperCase();
+    // Written as "IT" or "$IT" (not "it" or "I"): the user means the ticker.
+    const deliberate = w.length > 1 && /[a-z]/.test(w) && (raw[i].startsWith("$") || (!shouting && raw[i].replace(/^\$/, "") === up));
+    if (!deliberate && (STOP.has(w) || COMMON_WORDS.has(w))) continue;
     if (bySymbol.has(up)) return bySymbol.get(up);
     if (byTicker.has(up)) return byTicker.get(up);
     if (ALIASES[w] && byTicker.has(ALIASES[w])) return byTicker.get(ALIASES[w]);
@@ -39,6 +52,8 @@ export function findStock(text: string, stocks: Stock[]): Stock | undefined {
     const hit = stocks.find((s) => s.name.toLowerCase().split(/[\s,.]+/)[0] === w);
     if (hit) return hit;
   }
+  // "buy $5 of it" / "sell all of it" on a stock page means the stock on screen.
+  if (contextStock && /\b(it|this|this one|this stock|these)\b/i.test(text)) return contextStock;
   return undefined;
 }
 
@@ -47,17 +62,21 @@ function guessQuery(text: string): string {
   return w[0] || "";
 }
 
-export function parseTradeIntent(text: string, stocks: Stock[]): TradeIntent | null {
-  const t = text.trim().toLowerCase();
+export function parseTradeIntent(text: string, stocks: Stock[], contextStock?: Stock): TradeIntent | null {
+  // "$1,000" -> "$1000" so the amount isn't read as $1.
+  const original = text.trim().replace(/(\d),(\d{3})\b/g, "$1$2");
+  const t = original.toLowerCase();
   const action = /^(please\s+)?(i want to\s+|can you\s+|help me\s+)?(buy|get|purchase)\b/.test(t) ? "buy"
     : /^(please\s+)?(i want to\s+|can you\s+|help me\s+)?sell\b/.test(t) ? "sell" : null;
   if (!action) return null;
   // Questions about HOW to buy/sell are not orders ("how do I buy?" is handled by the explainer).
   if (/\?$/.test(t) && !/\$\s*\d|\d+\s*(usdc|dollars?|usd|%)|\b(half|all)\b/.test(t)) return null;
 
-  const stock = findStock(t, stocks);
+  const stock = findStock(original, stocks, contextStock);
   if (!stock) {
     const q = guessQuery(t);
+    // On a stock page, "sell everything" or "buy $5" with no company named means the stock on screen.
+    if (!q && contextStock) return parseTradeIntent(`${text} ${contextStock.symbol}`, stocks);
     return q ? { side: "unknown-stock", query: q, action } : null;
   }
 
@@ -69,14 +88,17 @@ export function parseTradeIntent(text: string, stocks: Stock[]): TradeIntent | n
     return { side: "buy", stock, usdc };
   }
 
+  // Selling "$5 of tesla" is a dollar amount, not 5 tokens. Ask rather than guess.
+  if (/\$\s*\d|\d\s*(usdc|usd|dollars?|bucks)\b/.test(t)) return { side: "missing-amount", stock, action };
   if (/\b(all|everything|entire)\b/.test(t)) return { side: "sell", stock, fraction: 1 };
   if (/\bhalf\b/.test(t)) return { side: "sell", stock, fraction: 0.5 };
   if (/\b(a\s+)?quarter\b/.test(t)) return { side: "sell", stock, fraction: 0.25 };
-  const pct = t.match(/(\d{1,3}(?:\.\d+)?)\s*%/);
+  const pct = t.match(/(\d+(?:\.\d+)?)\s*(%|percent\b|per cent\b)/);
   if (pct) {
     const f = Number(pct[1]) / 100;
-    if (f > 0 && f <= 1) return { side: "sell", stock, fraction: f };
+    return f > 0 && f <= 1 ? { side: "sell", stock, fraction: f } : { side: "missing-amount", stock, action };
   }
+  if (/(^|\s)-\s*\d/.test(t)) return { side: "missing-amount", stock, action };
   const amt = t.match(/\b(\d*\.?\d+)\b/);
   if (amt && Number(amt[1]) > 0) return { side: "sell", stock, tokens: Number(amt[1]) };
   return { side: "missing-amount", stock, action };

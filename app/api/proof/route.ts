@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getStocks } from "@/lib/stocks.ts";
 import { verifyTrade, summarize, type RpcReceipt, type RpcTx } from "@/lib/proof.ts";
-import { storeConfigured, saveProof, hasProof, listProofs, builtFor } from "@/lib/store.ts";
+import { storeConfigured, saveProof, hasProof, listProofs, builtFor, overLimit } from "@/lib/store.ts";
 
 export const dynamic = "force-dynamic";
 
@@ -31,7 +31,7 @@ export async function GET() {
     return NextResponse.json({ configured: true, ...summary }, { headers: { "cache-control": "public, s-maxage=30" } });
   } catch (e) {
     console.error("[proof] list failed", e);
-    return NextResponse.json({ error: "Couldn't load the purchase list right now." }, { status: 503 });
+    return NextResponse.json({ error: "Couldn't load the trade list right now." }, { status: 503 });
   }
 }
 
@@ -40,10 +40,15 @@ export async function POST(req: NextRequest) {
   const body = await req.json().catch(() => null);
   const hash = String(body?.hash || "").toLowerCase();
   if (!/^0x[0-9a-f]{64}$/.test(hash)) return NextResponse.json({ error: "That isn't a transaction hash." }, { status: 400 });
-  if (!storeConfigured()) return NextResponse.json({ error: "Purchase proof isn't switched on yet." }, { status: 503 });
+  if (!storeConfigured()) return NextResponse.json({ error: "Trade proof isn't switched on yet." }, { status: 503 });
 
   try {
     if (await hasProof(hash)) return NextResponse.json({ ok: true, already: true });
+    // Each check costs two blockchain lookups, so limit how often one visitor can ask.
+    const ip = (req.headers.get("x-forwarded-for") || "").split(",")[0].trim() || "unknown";
+    if (await overLimit(`proof:${ip}`, 30, 600).catch(() => false)) {
+      return NextResponse.json({ error: "Too many checks from here. Please try again in a few minutes." }, { status: 429 });
+    }
     const [tx, receipt] = await Promise.all([
       rpc<RpcTx | null>("eth_getTransactionByHash", [hash]),
       rpc<RpcReceipt | null>("eth_getTransactionReceipt", [hash]),

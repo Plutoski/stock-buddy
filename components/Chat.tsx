@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import type { Stock } from "@/lib/types.ts";
 import { parseTradeIntent, type TradeIntent } from "@/lib/intent.ts";
-import { isAdviceQuestion } from "@/lib/explain.ts";
+import { isAdviceQuestion, ADVICE_REPLY } from "@/lib/explain.ts";
 import { useOrders } from "./OrderContext.tsx";
 import { TradeCard } from "./TradeCard.tsx";
 import { Logo } from "./Logo.tsx";
@@ -48,9 +48,15 @@ export function Chat({ stock }: { stock?: Stock }) {
     const next: Msg[] = [...messages, { role: "user", content: q }];
     setMessages(next);
     setInput("");
+    // Advice questions get the refusal right here, with no network call. The server checks again.
+    if (isAdviceQuestion(q)) {
+      setMessages([...next, { role: "assistant", content: ADVICE_REPLY }]);
+      setMode("guard");
+      return;
+    }
     // Trade requests ("buy $5 of NVIDIA", "sell half my google") are handled right here:
-    // the agent researches a live quote and prepares the order. Advice questions never get here.
-    if (!isAdviceQuestion(q)) {
+    // the agent researches a live quote and prepares the order.
+    {
       const intent = parseTradeIntent(q, stocks, stock);
       if (intent) {
         setMessages([...next, { role: "assistant", content: `[prepared ${intent.side} order]`, intent }]);

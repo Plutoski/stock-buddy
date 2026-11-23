@@ -454,3 +454,4 @@ button, input, summary { font: inherit; color: inherit; }
   .detail .stat-row .big { font-size: 1.1rem; }
 }
 .proof .stat-row { margin-top: 1.75rem; }
+.chat-head .pill { white-space: nowrap; flex-shrink: 0; }

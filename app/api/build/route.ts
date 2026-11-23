@@ -15,11 +15,14 @@ export async function POST(req: NextRequest) {
   if (!body?.routeSummary || !isAddress(sender)) {
     return NextResponse.json({ error: "Missing quote or wallet address." }, { status: 400 });
   }
-  // Only build swaps from USDC into a token on Coinbase's official list.
+  // Only build swaps between USDC and a token on Coinbase's official list.
   const rs = body.routeSummary as { tokenIn?: string; tokenOut?: string };
   const { stocks, source } = await getStocks();
-  const allowed = source === "live" && stocks.some((s) => s.address.toLowerCase() === String(rs.tokenOut || "").toLowerCase());
-  if (!allowed || String(rs.tokenIn || "").toLowerCase() !== USDC_ADDRESS.toLowerCase()) {
+  const isStock = (a: unknown) => stocks.some((s) => s.address.toLowerCase() === String(a || "").toLowerCase());
+  const isUsdc = (a: unknown) => String(a || "").toLowerCase() === USDC_ADDRESS.toLowerCase();
+  // Buys: USDC -> Coinbase stock. Sells: Coinbase stock -> USDC. Nothing else.
+  const allowed = source === "live" && ((isUsdc(rs.tokenIn) && isStock(rs.tokenOut)) || (isStock(rs.tokenIn) && isUsdc(rs.tokenOut)));
+  if (!allowed) {
     return NextResponse.json({ error: "That swap isn't allowed. Please get a new quote." }, { status: 400 });
   }
   try {

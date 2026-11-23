@@ -8,6 +8,8 @@ import { BASESCAN_TX } from "@/lib/constants.ts";
 interface ProofData {
   configured: boolean;
   purchases: number;
+  sales?: number;
+  usdcReceived?: number;
   wallets: number;
   usdcTotal: number;
   records: ProofRecord[];
@@ -57,14 +59,14 @@ export default function ProofPage() {
       </header>
       <main className="layout proof">
         <section>
-          <h1>Proof of real purchases</h1>
+          <h1>Proof of real trades</h1>
           <p className="muted">
             Every purchase below was checked directly on the Base blockchain. A purchase counts only if the transaction succeeded,
-            went through KyberSwap, delivered a Coinbase tokenized stock to the buyer, and carries Stock Buddy&apos;s source label.
+            went through KyberSwap, swapped USDC for a Coinbase tokenized stock (or back), and carries Stock Buddy&apos;s source label.
             The builder&apos;s own wallets are left out of the numbers.
           </p>
 
-          {isLoading && <p className="muted">Loading purchases…</p>}
+          {isLoading && <p className="muted">Loading trades…</p>}
           {isError && <p className="error">Couldn&apos;t load the list right now. <button className="btn btn-link" onClick={() => refetch()}>Try again</button></p>}
           {data && !data.configured && <p className="card">The purchase log is being set up. Check back soon.</p>}
 
@@ -72,28 +74,30 @@ export default function ProofPage() {
             <>
               <div className="card facts">
                 <div className="fact"><span className="muted small">Verified purchases</span><strong className="big">{data.purchases}</strong></div>
-                <div className="fact"><span className="muted small">Unique buyers</span><strong className="big">{data.wallets}</strong></div>
-                <div className="fact"><span className="muted small">USDC spent</span><strong className="big">{money(data.usdcTotal)}</strong></div>
+                <div className="fact"><span className="muted small">Unique wallets</span><strong className="big">{data.wallets}</strong></div>
+                <div className="fact"><span className="muted small">Verified sales</span><strong className="big">{data.sales ?? 0}</strong></div>
+                <div className="fact"><span className="muted small">USDC spent on purchases</span><strong className="big">{money(data.usdcTotal)}</strong></div>
               </div>
               {data.excludedWallets > 0 && (
                 <p className="muted small">{data.excludedWallets} builder wallet{data.excludedWallets === 1 ? " is" : "s are"} excluded from these numbers.</p>
               )}
 
               <section className="card">
-                <h3>Purchases</h3>
+                <h3>Trades</h3>
                 {data.records.length === 0 ? (
-                  <p className="muted">No purchases yet.</p>
+                  <p className="muted">No trades yet.</p>
                 ) : (
                   <div className="table-wrap">
                     <table className="proof-table">
-                      <thead><tr><th>Buyer</th><th>Stock</th><th>Amount</th><th>Paid</th><th>Receipt</th></tr></thead>
+                      <thead><tr><th>Wallet</th><th>Type</th><th>Stock</th><th>Amount</th><th>USDC</th><th>Receipt</th></tr></thead>
                       <tbody>
                         {data.records.map((r) => (
                           <tr key={r.hash}>
                             <td className="mono">{short(r.wallet)}</td>
+                            <td>{r.side === "sell" ? "Sell" : "Buy"}</td>
                             <td>{r.symbol}</td>
                             <td>{r.tokens.toLocaleString("en-US", { maximumFractionDigits: 6 })}</td>
-                            <td>{r.usdcPaid !== undefined ? money(r.usdcPaid) : "–"}</td>
+                            <td>{r.side === "sell" ? (r.usdcReceived !== undefined ? money(r.usdcReceived) : "–") : (r.usdcPaid !== undefined ? money(r.usdcPaid) : "–")}</td>
                             <td><a href={BASESCAN_TX + r.hash} target="_blank" rel="noreferrer">Basescan ↗</a></td>
                           </tr>
                         ))}
@@ -106,7 +110,7 @@ export default function ProofPage() {
           )}
 
           <section className="card">
-            <h3>Bought through Stock Buddy but not listed?</h3>
+            <h3>Traded through Stock Buddy but not listed?</h3>
             <p className="muted small">Paste your transaction hash from Basescan. We&apos;ll check it on the blockchain before adding it.</p>
             <form className="chat-input" onSubmit={addPurchase}>
               <input value={hash} onChange={(e) => setHash(e.target.value)} placeholder="0x…" aria-label="Transaction hash" spellCheck={false} />

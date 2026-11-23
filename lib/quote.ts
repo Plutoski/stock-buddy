@@ -88,3 +88,42 @@ export async function getLivePrices(stocks: Stock[], concurrency = 6): Promise<L
   }
   return out;
 }
+
+export interface RawSellQuote {
+  amountIn: string;        // stock token smallest units
+  amountOut: string;       // USDC smallest units
+  tokensIn: number;
+  usdcOut: number;
+  pricePerToken: number;   // USDC per token this sale would get
+  gasUsd?: number;
+  routerAddress: `0x${string}`;
+  routeSummary: unknown;
+}
+
+/** Ask KyberSwap for the best route to swap a stock token back into USDC. */
+export async function getKyberSellQuote(stock: Stock, amountInUnits: bigint, timeoutMs = 8000): Promise<RawSellQuote | null> {
+  const url = `${KYBER_API}/routes?${new URLSearchParams({ tokenIn: stock.address, tokenOut: USDC_ADDRESS, amountIn: amountInUnits.toString(), gasInclude: "true" })}`;
+  const ctrl = new AbortController();
+  const t = setTimeout(() => ctrl.abort(), timeoutMs);
+  try {
+    const res = await fetch(url, { headers: kyberHeaders(), cache: "no-store", signal: ctrl.signal });
+    const body = await res.json().catch(() => ({}));
+    const rs = body?.data?.routeSummary;
+    if (!res.ok || !rs?.amountOut) return null;
+    const tokensIn = Number(formatUnits(amountInUnits, stock.decimals));
+    const usdcOut = Number(formatUnits(BigInt(rs.amountOut), USDC_DECIMALS));
+    if (!(tokensIn > 0) || !(usdcOut > 0)) return null;
+    return {
+      amountIn: amountInUnits.toString(),
+      amountOut: rs.amountOut,
+      tokensIn,
+      usdcOut,
+      pricePerToken: usdcOut / tokensIn,
+      gasUsd: num(rs.gasUsd),
+      routerAddress: body.data.routerAddress,
+      routeSummary: rs,
+    };
+  } finally {
+    clearTimeout(t);
+  }
+}

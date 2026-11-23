@@ -51,3 +51,12 @@ export function gapSentence(gap: number | undefined, marketOpen: boolean): strin
     : "If you buy now, you pay less than the official price, but that gap can close either way when the market reopens.";
   return `Right now people on Base are paying ${pct}% ${dir} than the official price. ${why} ${meaning}`;
 }
+
+/** What a seller should know about the price gap, in plain words. Never advice. */
+export function sellGapSentence(gap: number | undefined): string | undefined {
+  if (gap === undefined || Math.abs(gap) < 1) return undefined;
+  const pct = Math.abs(gap).toFixed(1);
+  return gap > 0
+    ? `This sale would get ${pct}% more per token than the official reference price. That often happens when the official price is frozen, for example at weekends.`
+    : `This sale would get ${pct}% less per token than the official reference price. That often happens when the official price is frozen, for example at weekends.`;
+}

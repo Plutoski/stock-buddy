@@ -210,7 +210,7 @@ export function BuyPanel({ stock, liveData }: { stock: Stock; liveData: boolean 
         <div className="success">
           <p><strong>Done!</strong> You bought about {quote?.amountOutTokens.toLocaleString("en-US", { maximumFractionDigits: 6 })} {stock.symbol}.</p>
           <p className="small"><a href={BASESCAN_TX + txHash} target="_blank" rel="noreferrer">View your receipt on Basescan ↗</a></p>
-          {proofState === "saved" && <p className="small">Verified and added to the <a href="/proof">public purchase list</a>.</p>}
+          {proofState === "saved" && <p className="small">Verified and added to the <a href="/proof">public list</a>.</p>}
           {proofState === "failed" && <p className="small muted">We couldn&apos;t add it to the <a href="/proof">public list</a> yet. You can paste your receipt link there later.</p>}
           <div className="row">
             <a className="btn btn-ghost" href={`https://x.com/intent/tweet?text=${shareText}`} target="_blank" rel="noreferrer">Share on X</a>

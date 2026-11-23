@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getStocks } from "@/lib/stocks.ts";
-import { verifyPurchase, summarize, type RpcReceipt, type RpcTx } from "@/lib/proof.ts";
+import { verifyTrade, summarize, type RpcReceipt, type RpcTx } from "@/lib/proof.ts";
 import { storeConfigured, saveProof, hasProof, listProofs } from "@/lib/store.ts";
 
 export const dynamic = "force-dynamic";
@@ -24,7 +24,7 @@ async function rpc<T>(method: string, params: unknown[]): Promise<T> {
 // GET /api/proof -> public, verified purchase list and totals (builder's own wallets excluded)
 export async function GET() {
   if (!storeConfigured()) {
-    return NextResponse.json({ configured: false, purchases: 0, wallets: 0, usdcTotal: 0, records: [], excludedWallets: 0 });
+    return NextResponse.json({ configured: false, purchases: 0, sales: 0, wallets: 0, usdcTotal: 0, usdcReceived: 0, records: [], excludedWallets: 0 });
   }
   try {
     const summary = summarize(await listProofs(), EXCLUDE);
@@ -51,7 +51,7 @@ export async function POST(req: NextRequest) {
     if (!tx || !receipt) return NextResponse.json({ error: "That transaction isn't confirmed on Base yet. Try again in a minute." }, { status: 404 });
     const { stocks, source } = await getStocks();
     if (source !== "live") return NextResponse.json({ error: "Live stock data isn't available right now. Try again soon." }, { status: 503 });
-    const result = verifyPurchase(tx, receipt, stocks);
+    const result = verifyTrade(tx, receipt, stocks);
     if (!result.ok) return NextResponse.json({ error: result.reason }, { status: 422 });
     await saveProof(result.record);
     return NextResponse.json({ ok: true, record: result.record });

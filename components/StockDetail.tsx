@@ -4,15 +4,18 @@ import type { Stock } from "@/lib/types.ts";
 import type { MarketStatus } from "@/lib/market.ts";
 import { explainStock, formatUsd, sharesPerToken } from "@/lib/explain.ts";
 import { timeAgo, isOfficialPriceFrozen } from "@/lib/market.ts";
+import { useState } from "react";
 import { BuyPanel } from "./BuyPanel.tsx";
+import { SellPanel } from "./SellPanel.tsx";
 import { Chat } from "./Chat.tsx";
 import { StockIcon, GapPill } from "./StockList.tsx";
 import { gapSentence, type LivePrice } from "@/lib/pricing.ts";
 
-export function StockDetail({ stock, market, liveData, onBack, livePrice, priceLoading }: {
+export function StockDetail({ stock, market, liveData, onBack, livePrice, priceLoading, initialTab = "buy" }: {
   stock: Stock; market: MarketStatus; liveData: boolean; onBack: () => void;
-  livePrice?: LivePrice; priceLoading?: boolean;
+  livePrice?: LivePrice; priceLoading?: boolean; initialTab?: "buy" | "sell";
 }) {
+  const [tab, setTab] = useState<"buy" | "sell">(initialTab);
   const frozen = isOfficialPriceFrozen(stock.navPriceUpdatedAt);
   const gapText = gapSentence(livePrice?.gapPct, !frozen);
   return (
@@ -58,7 +61,15 @@ export function StockDetail({ stock, market, liveData, onBack, livePrice, priceL
       </section>
 
       <div className="detail-grid">
-        <BuyPanel key={stock.address} stock={stock} liveData={liveData} />
+        <div>
+          <div className="tabs" role="tablist" aria-label="Buy or sell">
+            <button role="tab" aria-selected={tab === "buy"} className={`tab ${tab === "buy" ? "tab-on" : ""}`} onClick={() => setTab("buy")}>Buy</button>
+            <button role="tab" aria-selected={tab === "sell"} className={`tab ${tab === "sell" ? "tab-on" : ""}`} onClick={() => setTab("sell")}>Sell</button>
+          </div>
+          {tab === "buy"
+            ? <BuyPanel key={stock.address} stock={stock} liveData={liveData} />
+            : <SellPanel key={stock.address} stock={stock} liveData={liveData} />}
+        </div>
         <Chat stock={stock} />
       </div>
 

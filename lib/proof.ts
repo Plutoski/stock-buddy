@@ -17,12 +17,16 @@ export interface RpcLog { address: string; topics: string[]; data: string }
 export interface RpcReceipt { status: string; blockNumber: string; logs: RpcLog[]; transactionHash: string }
 export interface RpcTx { hash: string; input: string; from: string; to: string | null }
 
+export const SWAPPED_TOPIC = "0xd6d4f5681c246c9f42c203e287975af1601f8df8035a9251f79aab5c8f09e2f8";
+
 export interface ProofRecord {
   hash: string;
-  wallet: string;          // who received the stock tokens
+  side?: "buy" | "sell";   // older records (before selling existed) are buys
+  wallet: string;          // the buyer or seller
   symbol: string;
-  tokens: number;          // stock tokens received
-  usdcPaid?: number;       // USDC the wallet paid, when visible in the logs
+  tokens: number;          // stock tokens bought or sold
+  usdcPaid?: number;       // buys: USDC paid
+  usdcReceived?: number;   // sells: USDC received
   block: number;
   at: string;              // when we verified it
 }
@@ -30,19 +34,22 @@ export interface ProofRecord {
 export type ProofResult = { ok: true; record: ProofRecord } | { ok: false; reason: string };
 
 const topicToAddress = (t: string) => ("0x" + t.slice(-40)).toLowerCase();
+const word = (data: string, i: number) => data.slice(2 + i * 64, 2 + (i + 1) * 64);
+const wordAddress = (data: string, i: number) => ("0x" + word(data, i).slice(24)).toLowerCase();
+const wordUnits = (data: string, i: number, decimals: number) => Number(BigInt("0x" + word(data, i))) / 10 ** decimals;
 
 function units(hexValue: string, decimals: number): number {
   const v = BigInt(hexValue === "0x" ? "0x0" : hexValue);
   return Number(v) / 10 ** decimals;
 }
 
-export function verifyPurchase(tx: RpcTx, receipt: RpcReceipt, stocks: Stock[], now = new Date()): ProofResult {
+/** Checks a Base transaction and returns what Stock Buddy trade it was, if any. */
+export function verifyTrade(tx: RpcTx, receipt: RpcReceipt, stocks: Stock[], now = new Date()): ProofResult {
   if (receipt.status !== "0x1") return { ok: false, reason: "That transaction didn't succeed." };
 
   const logs = receipt.logs || [];
-  if (!logs.some((l) => l.address.toLowerCase() === KYBER_ROUTER)) {
-    return { ok: false, reason: "That transaction isn't a KyberSwap swap." };
-  }
+  const routerLogs = logs.filter((l) => l.address.toLowerCase() === KYBER_ROUTER);
+  if (!routerLogs.length) return { ok: false, reason: "That transaction isn't a KyberSwap swap." };
 
   const tagged =
     (tx.input || "").toLowerCase().includes(SOURCE_TAG_HEX) ||
@@ -50,37 +57,68 @@ export function verifyPurchase(tx: RpcTx, receipt: RpcReceipt, stocks: Stock[], 
   if (!tagged) return { ok: false, reason: "That swap wasn't made through Stock Buddy." };
 
   const byAddress = new Map(stocks.map((s) => [s.address.toLowerCase(), s]));
-  // The stock token transfer that lands in the buyer's wallet (the last hop of the swap).
-  const stockIn = logs
-    .filter((l) => l.topics?.[0] === TRANSFER_TOPIC && l.topics.length >= 3 && byAddress.has(l.address.toLowerCase()))
-    .filter((l) => topicToAddress(l.topics[2]) !== KYBER_ROUTER)
-    .pop();
-  if (!stockIn) return { ok: false, reason: "No Coinbase tokenized stock was bought in that transaction." };
+  const base = { hash: receipt.transactionHash.toLowerCase(), block: Number(BigInt(receipt.blockNumber)), at: now.toISOString() };
 
+  // 1. Best source: KyberSwap's own Swapped event (works for normal and smart wallets).
+  //    Swapped(address sender, address srcToken, address dstToken, address dstReceiver, uint256 spentAmount, uint256 returnAmount)
+  const swapped = routerLogs.find((l) => l.topics?.[0] === SWAPPED_TOPIC && (l.data || "").length >= 2 + 6 * 64);
+  if (swapped) {
+    const d = swapped.data;
+    const src = wordAddress(d, 1), dst = wordAddress(d, 2), receiver = wordAddress(d, 3);
+    if (src === USDC && byAddress.has(dst)) {
+      const stock = byAddress.get(dst)!;
+      return { ok: true, record: { ...base, side: "buy", wallet: receiver, symbol: stock.symbol,
+        tokens: wordUnits(d, 5, stock.decimals), usdcPaid: wordUnits(d, 4, 6) } };
+    }
+    if (byAddress.has(src) && dst === USDC) {
+      const stock = byAddress.get(src)!;
+      return { ok: true, record: { ...base, side: "sell", wallet: receiver, symbol: stock.symbol,
+        tokens: wordUnits(d, 4, stock.decimals), usdcReceived: wordUnits(d, 5, 6) } };
+    }
+    return { ok: false, reason: "That swap wasn't between USDC and a Coinbase tokenized stock." };
+  }
+
+  // 2. Fallback from token transfers, anchored on the signer when the wallet called the router directly.
+  const transfers = logs.filter((l) => l.topics?.[0] === TRANSFER_TOPIC && l.topics.length >= 3);
+  const signer = (tx.to || "").toLowerCase() === KYBER_ROUTER ? (tx.from || "").toLowerCase() : "";
+  if (signer) {
+    const stockIn = transfers.find((l) => byAddress.has(l.address.toLowerCase()) && topicToAddress(l.topics[2]) === signer);
+    const stockOut = transfers.find((l) => byAddress.has(l.address.toLowerCase()) && topicToAddress(l.topics[1]) === signer);
+    const usdcOut = transfers.find((l) => l.address.toLowerCase() === USDC && topicToAddress(l.topics[1]) === signer);
+    const usdcIn = transfers.find((l) => l.address.toLowerCase() === USDC && topicToAddress(l.topics[2]) === signer);
+    if (stockIn) {
+      const stock = byAddress.get(stockIn.address.toLowerCase())!;
+      return { ok: true, record: { ...base, side: "buy", wallet: signer, symbol: stock.symbol,
+        tokens: units(stockIn.data, stock.decimals), usdcPaid: usdcOut ? units(usdcOut.data, 6) : undefined } };
+    }
+    if (stockOut && usdcIn) {
+      const stock = byAddress.get(stockOut.address.toLowerCase())!;
+      return { ok: true, record: { ...base, side: "sell", wallet: signer, symbol: stock.symbol,
+        tokens: units(stockOut.data, stock.decimals), usdcReceived: units(usdcIn.data, 6) } };
+    }
+  }
+
+  // 3. Last resort for purchases: the final stock transfer that leaves the router.
+  const stockIn = transfers
+    .filter((l) => byAddress.has(l.address.toLowerCase()) && topicToAddress(l.topics[1]) === KYBER_ROUTER)
+    .pop();
+  if (!stockIn) return { ok: false, reason: "No Coinbase tokenized stock was bought or sold in that transaction." };
   const stock = byAddress.get(stockIn.address.toLowerCase())!;
   const wallet = topicToAddress(stockIn.topics[2]);
-  const usdcOut = logs.find(
-    (l) => l.address.toLowerCase() === USDC && l.topics?.[0] === TRANSFER_TOPIC && l.topics.length >= 3 && topicToAddress(l.topics[1]) === wallet,
-  );
-
-  return {
-    ok: true,
-    record: {
-      hash: receipt.transactionHash.toLowerCase(),
-      wallet,
-      symbol: stock.symbol,
-      tokens: units(stockIn.data, stock.decimals),
-      usdcPaid: usdcOut ? units(usdcOut.data, 6) : undefined,
-      block: Number(BigInt(receipt.blockNumber)),
-      at: now.toISOString(),
-    },
-  };
+  const usdcOut = transfers.find((l) => l.address.toLowerCase() === USDC && topicToAddress(l.topics[1]) === wallet);
+  return { ok: true, record: { ...base, side: "buy", wallet, symbol: stock.symbol,
+    tokens: units(stockIn.data, stock.decimals), usdcPaid: usdcOut ? units(usdcOut.data, 6) : undefined } };
 }
+
+/** Kept for existing callers and tests. */
+export const verifyPurchase = verifyTrade;
 
 export interface ProofSummary {
   purchases: number;
+  sales: number;
   wallets: number;
-  usdcTotal: number;
+  usdcTotal: number;      // USDC spent on purchases
+  usdcReceived: number;   // USDC received from sales
   records: ProofRecord[];
   excludedWallets: number;
 }
@@ -89,10 +127,14 @@ export interface ProofSummary {
 export function summarize(records: ProofRecord[], exclude: string[]): ProofSummary {
   const ex = new Set(exclude.map((w) => w.trim().toLowerCase()).filter(Boolean));
   const counted = records.filter((r) => !ex.has(r.wallet));
+  const buys = counted.filter((r) => (r.side ?? "buy") === "buy");
+  const sells = counted.filter((r) => r.side === "sell");
   return {
-    purchases: counted.length,
+    purchases: buys.length,
+    sales: sells.length,
     wallets: new Set(counted.map((r) => r.wallet)).size,
-    usdcTotal: counted.reduce((sum, r) => sum + (r.usdcPaid ?? 0), 0),
+    usdcTotal: buys.reduce((sum, r) => sum + (r.usdcPaid ?? 0), 0),
+    usdcReceived: sells.reduce((sum, r) => sum + (r.usdcReceived ?? 0), 0),
     records: [...counted].sort((a, b) => b.block - a.block),
     excludedWallets: ex.size,
   };

@@ -9,6 +9,7 @@ import { EligibilityGate } from "@/components/EligibilityGate.tsx";
 import { StockList } from "@/components/StockList.tsx";
 import { StockDetail } from "@/components/StockDetail.tsx";
 import { Chat } from "@/components/Chat.tsx";
+import { MyStocks } from "@/components/MyStocks.tsx";
 import type { LivePrice } from "@/lib/pricing.ts";
 
 type Data = StocksResponse & { market: MarketStatus };
@@ -25,6 +26,7 @@ export default function Home() {
     refetchInterval: 60_000,
   });
   const [selected, setSelected] = useState<Stock | null>(null);
+  const [openTab, setOpenTab] = useState<"buy" | "sell">("buy");
 
   // Live trading prices for the biggest stocks (refreshed every 90s).
   const live = data?.source === "live";
@@ -61,7 +63,8 @@ export default function Home() {
   }, [data, selected]);
 
   // On phones the detail view replaces the list; scroll to top when switching.
-  function choose(s: Stock | null) {
+  function choose(s: Stock | null, tab: "buy" | "sell" = "buy") {
+    setOpenTab(tab);
     setSelected(s);
     if (typeof window !== "undefined") window.scrollTo({ top: 0 });
   }
@@ -103,12 +106,13 @@ export default function Home() {
           {isError && (
             <p className="error">Couldn't load stocks. <button className="btn btn-link" onClick={() => refetch()}>Try again</button></p>
           )}
-          {data && <StockList stocks={data.stocks} selected={selected?.address} onSelect={choose} prices={priceMap} />}
+          {data && live && <MyStocks stocks={data.stocks} prices={priceMap} onOpen={(s) => choose(s, "sell")} />}
+          {data && <StockList stocks={data.stocks} selected={selected?.address} onSelect={(s) => choose(s)} prices={priceMap} />}
         </aside>
 
         <section className="content">
           {selected && market ? (
-            <StockDetail stock={selected} market={market} liveData={live} onBack={() => choose(null)}
+            <StockDetail key={selected.address + openTab} initialTab={openTab} stock={selected} market={market} liveData={live} onBack={() => choose(null)}
               livePrice={priceMap.get(selected.address.toLowerCase())} priceLoading={live && (topLoading || selLoading)} />
           ) : (
             <div className="welcome">

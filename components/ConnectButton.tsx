@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useAccount, useConnect, useDisconnect } from "wagmi";
 
 export function short(addr?: string) {
@@ -12,6 +12,15 @@ export function ConnectButton() {
   const { connectors, connect, isPending, error } = useConnect();
   const { disconnect } = useDisconnect();
   const [open, setOpen] = useState(false);
+  const box = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (!open) return;
+    const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") setOpen(false); };
+    const onClick = (e: MouseEvent) => { if (box.current && !box.current.contains(e.target as Node)) setOpen(false); };
+    document.addEventListener("keydown", onKey);
+    document.addEventListener("mousedown", onClick);
+    return () => { document.removeEventListener("keydown", onKey); document.removeEventListener("mousedown", onClick); };
+  }, [open]);
 
   if (isConnected) {
     return (
@@ -22,7 +31,7 @@ export function ConnectButton() {
   }
 
   return (
-    <div className="connect">
+    <div className="connect" ref={box}>
       <button className="btn btn-primary" onClick={() => setOpen((o) => !o)} aria-expanded={open} disabled={isPending}>
         {isPending ? "Connecting…" : "Connect wallet"}
       </button>

@@ -4,8 +4,8 @@ import { getLivePrices } from "@/lib/quote.ts";
 
 export const dynamic = "force-dynamic";
 
-const DEFAULT_TOP = 20;
-const MAX_TOKENS = 30;
+const DEFAULT_TOP = 12;
+const MAX_TOKENS = 12;
 
 // GET /api/prices                 -> live trading prices for the 20 biggest stocks
 // GET /api/prices?tokens=0x..,0x.. -> live trading prices for specific stocks (max 30)

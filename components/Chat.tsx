@@ -60,7 +60,7 @@ export function Chat({ stock }: { stock?: Stock }) {
       <div className="chat-log" aria-live="polite" ref={logRef}>
         {messages.length === 0 && <p className="muted small">Ask anything about how {stock ? `${stock.symbol} works` : "tokenized stocks work"}. I explain, I don't give advice.</p>}
         {messages.map((m, i) => (
-          <div key={i} className={`bubble ${m.role}`}>{m.content}</div>
+          <div key={i} className={`bubble ${m.role}`} dir="auto">{m.content}</div>
         ))}
         {loading && <div className="bubble assistant typing">Thinking…</div>}
       </div>

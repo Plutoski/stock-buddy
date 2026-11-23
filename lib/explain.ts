@@ -1,17 +1,26 @@
 import type { Stock } from "./types.ts";
 import type { MarketStatus } from "./market.ts";
+import { isOfficialPriceFrozen } from "./market.ts";
 
 // Stock Buddy explains; it never recommends. These rules are shared by the
 // built-in answers and the AI model's instructions.
 
 const ADVICE_PATTERNS = [
-  /\bshould i (buy|sell|invest|hold|get)\b/i,
-  /\b(is|are) .{0,30}\b(a )?good (buy|investment|time)\b/i,
-  /\bwill .{0,30}\b(go up|go down|rise|fall|moon|crash|pump)\b/i,
-  /\bwhat (stock|should) .{0,20}\b(buy|invest)\b/i,
-  /\b(price )?(prediction|target|forecast)\b/i,
-  /\bbest stock\b/i,
+  /\bshould (i|we|you)\b.{0,25}\b(buy|sell|invest|hold|get|keep|dump)\b/i,
+  /\b(would|do) you\b.{0,20}\b(buy|sell|invest|hold|recommend|suggest|pick)\b/i,
+  /\bwhat would you do\b/i,
+  /\b(recommend|recommendation|suggest)\w*\b/i,
+  /\b(is|are|it'?s)\b.{0,30}\b(a )?(good|smart|wise|safe|bad) (buy|investment|time|idea|bet|deal)\b/i,
+  /\b(smart|wise|good idea) to (buy|sell|invest)\b/i,
+  /\bworth (buying|it|investing|the money)\b/i,
+  /\bbuy or sell\b|\bsell or (buy|hold)\b|\bhold or sell\b/i,
+  /\b(bullish|bearish|undervalued|overvalued|cheap now|to the moon)\b/i,
+  /\bwill .{0,30}\b(go up|go down|rise|fall|moon|crash|pump|drop|recover)\b/i,
+  /\b(what|which) (stock|token|one)s?\b.{0,20}\b(buy|invest|pick|choose|best)\b/i,
+  /\b(best|top) (stock|token|pick|investment)s?\b/i,
+  /\b(price )?(prediction|target|forecast)s?\b/i,
   /\bguarantee/i,
+  /\b(deber[ií]a|vale la pena|recomiendas|devrais-je|dois-je|conseilles|vale a pena|devo comprar)\b/i,
 ];
 
 export function isAdviceQuestion(q: string): boolean {
@@ -42,9 +51,9 @@ export function explainStock(stock: Stock, market: MarketStatus): string[] {
     lines.push("Coinbase hasn't published an official reference value for this token yet, so compare the trading price carefully before buying.");
   } else {
     lines.push(
-      market.isOpen
-        ? `The official reference value is ${formatUsd(stock.navPrice)} per token, and it's updating because the US market is open.`
-        : `The official reference value is ${formatUsd(stock.navPrice)} per token, but it's frozen until the US market reopens. The trading price on Base can move away from it in the meantime.`,
+      !isOfficialPriceFrozen(stock.navPriceUpdatedAt)
+        ? `The official reference value is ${formatUsd(stock.navPrice)} per token, and it's updating right now.`
+        : `The official reference value is ${formatUsd(stock.navPrice)} per token, but it's frozen at its last value${market.isOpen ? "" : " until the US market reopens"}. The trading price on Base can move away from it in the meantime.`,
     );
   }
   if (stock.pausedFeatures.length > 0) {
@@ -97,9 +106,11 @@ const TOPICS: Topic[] = [
       "Each token is backed 1:1 by real shares held in segregated, regulated custody, separate from Coinbase. Holding the token gives you a claim on that share. Turning tokens back into actual shares (redemption) is limited to approved participants who pass identity checks, so most people buy and sell the token itself on Base.",
   },
   {
-    keys: /\b(buy|purchase|how do i (get|start))\b/i,
+    keys: /\b(no usdc|don'?t have (any )?usdc|get usdc|buy usdc|where.{0,15}usdc|fund (my )?wallet|top ?up)\b/i,
     answer: () =>
-      "To buy with Stock Buddy: connect a wallet that has some USDC on Base, pick a stock, choose an amount (from $1), and review the quote. You'll approve the exact USDC amount, then confirm the swap in your wallet. You'll see the result and a receipt link. You stay in control the whole time, and Stock Buddy never holds your money.",
+      "To buy, you need USDC (a digital dollar, 1 USDC ≈ $1) on the Base network, plus a tiny bit of ETH on Base for the network fee if your wallet asks for it. " +
+      "If you have a Coinbase account, buy USDC there and send it to your wallet address, choosing the Base network. From another exchange, withdraw USDC and pick Base as the network. " +
+      "Always double-check the network is Base, or the funds may not arrive.",
   },
   {
     keys: /\b(usdc|stablecoin|wallet|base account)\b/i,
@@ -107,9 +118,34 @@ const TOPICS: Topic[] = [
       "USDC is a digital dollar (1 USDC ≈ $1) and it's what you pay with. You need a wallet on the Base network with some USDC in it. Base Account (from Coinbase) works on both phone and laptop. You can also use MetaMask or the Coinbase Wallet browser extension.",
   },
   {
-    keys: /\b(us|usa|united states|america|eligible|country|countries)\b/i,
+    keys: /\b(why|how come)\b.{0,40}\b(higher|lower|more|less|different|gap|premium|discount)\b|\b(gap|premium|discount)\b/i,
+    answer: (_s, m) =>
+      "The official price comes from the real US stock market. When that market is closed, especially at weekends and on holidays, the official price stops moving, but people keep trading the token on Base. " +
+      "If buyers on Base are paying more than the frozen price, you see a premium; if less, a discount. The gap often shrinks when the US market reopens, but it can close in either direction. " +
+      (m && !m.isOpen ? "The US market is closed right now." : ""),
+  },
+  {
+    keys: /\b(sell|cash out|get my money|withdraw)\b/i,
     answer: () =>
-      "Coinbase tokenized stocks are only for eligible people outside the United States, and some countries are excluded. Check that they're allowed where you live before buying.",
+      "The tokens are yours, in your own wallet, so you can sell them any time on Base by swapping back to USDC (for example with a DEX app or your wallet's swap feature). " +
+      "Stock Buddy only helps with buying today. When you sell, check the trading price against the official price first, just like when you buy.",
+  },
+  {
+    keys: /\b(my (stocks|tokens|holdings|portfolio)|what i own|see (my|what))\b/i,
+    answer: () =>
+      "Your tokens sit in your own wallet, so your wallet app shows them (look for names ending in a small c, like NVDAc). " +
+      "To see how many real shares that is, multiply your token amount by the multiplier shown on the stock's page in Stock Buddy.",
+  },
+  {
+    keys: /\b(buy|purchase|how do i (get|start))\b/i,
+    answer: () =>
+      "To buy with Stock Buddy: connect a wallet that has some USDC on Base, pick a stock, choose an amount (from $1), and review the quote. You'll let the swap use the exact USDC amount, then confirm the purchase in your wallet. You'll see the result and a receipt link. You stay in control the whole time, and Stock Buddy never holds your money.",
+  },
+  {
+    // Case-sensitive "US"/"UK" so words like "tell us" don't match.
+    keys: /\b(?:US|USA|UK)\b|\b(?:[Uu]nited [Ss]tates|[Aa]merica|[Ee]ligib\w*|[Cc]ountr(?:y|ies)|[Cc]anada|[Nn]igeria|[Uu]nited [Kk]ingdom|[Ww]here I live)\b/,
+    answer: () =>
+      "Coinbase tokenized stocks are only for eligible people outside the United States, and some other countries are excluded too. Stock Buddy can't confirm your country. Check Coinbase's terms for where you live before buying.",
   },
 ];
 

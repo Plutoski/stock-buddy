@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { encodeFunctionData, erc20Abi, formatUnits, parseUnits } from "viem";
 import { base } from "wagmi/chains";
 import {
@@ -33,6 +33,8 @@ export function BuyPanel({ stock, liveData }: { stock: Stock; liveData: boolean 
   const [approveHash, setApproveHash] = useState<`0x${string}` | undefined>();
 
   const { sendTransactionAsync } = useSendTransaction();
+  const busy = useRef(false);      // blocks double/triple clicks on Approve and Buy
+  const quoteSeq = useRef(0);      // ignores quote answers that arrive after the user changed something
 
   const usdc = Number(amount);
   const amountValid = Number.isFinite(usdc) && usdc >= MIN_BUY_USDC && usdc <= MAX_BUY_USDC;
@@ -51,8 +53,12 @@ export function BuyPanel({ stock, liveData }: { stock: Stock; liveData: boolean 
   const buyReceipt = useWaitForTransactionReceipt({ hash: txHash, chainId: base.id });
 
   // Reset when the stock or amount changes, so an old quote is never used.
-  useEffect(() => { setQuote(null); setStep("idle"); setError(""); setAgree(false); setTxHash(undefined); setApproveHash(undefined); }, [stock.address]);
-  useEffect(() => { if (step === "quoted") { setQuote(null); setStep("idle"); } /* eslint-disable-next-line react-hooks/exhaustive-deps */ }, [amount]);
+  useEffect(() => { quoteSeq.current++; setQuote(null); setStep("idle"); setError(""); setAgree(false); setTxHash(undefined); setApproveHash(undefined); }, [stock.address]);
+  useEffect(() => {
+    quoteSeq.current++;
+    if (step === "quoted" || step === "quoting") { setQuote(null); setStep("idle"); }
+    /* eslint-disable-next-line react-hooks/exhaustive-deps */
+  }, [amount]);
 
   useEffect(() => { if (approveReceipt.isSuccess) { refetchAllowance(); setStep("quoted"); } }, [approveReceipt.isSuccess, refetchAllowance]);
   useEffect(() => { if (buyReceipt.isSuccess) { setStep("done"); refetchBalance(); } }, [buyReceipt.isSuccess, refetchBalance]);
@@ -86,21 +92,30 @@ export function BuyPanel({ stock, liveData }: { stock: Stock; liveData: boolean 
   const needsApproval = quote && allowance !== undefined ? allowance < BigInt(quote.amountIn) : true;
   const notEnough = balance !== undefined && amountValid && balance < usdc;
   const gap = quote ? priceGapPct(quote.pricePerToken, stock.navPrice) : undefined;
+  const quotedUsdc = quote ? Number(formatUnits(BigInt(quote.amountIn), USDC_DECIMALS)) : 0;
 
   async function getQuote() {
+    const seq = ++quoteSeq.current;
     setError(""); setQuote(null); setStep("quoting");
     try {
-      const res = await fetch(`/api/quote?token=${stock.address}&usdc=${usdc}`);
-      const body = await res.json();
-      if (!res.ok) throw new Error(body.error || "Couldn't get a quote.");
+      const res = await fetch(`/api/quote?token=${stock.address}&usdc=${usdc}`, { signal: AbortSignal.timeout(20_000) });
+      const body = await res.json().catch(() => ({}));
+      if (seq !== quoteSeq.current) return; // the user changed stock or amount meanwhile
+      if (!res.ok) throw new Error(body.error || "The price service is busy. Please try again in a moment.");
+      const ok = typeof body.amountIn === "string" && typeof body.amountOut === "string" && body.amountOutTokens > 0
+        && typeof body.routerAddress === "string" && /^0x[0-9a-fA-F]{40}$/.test(body.routerAddress);
+      if (!ok) throw new Error("The price service sent an unexpected answer. Please try again.");
       setQuote(body as Quote); setStep("quoted");
     } catch (e) {
-      setError((e as Error).message); setStep("idle");
+      if (seq !== quoteSeq.current) return;
+      const msg = (e as Error).name === "TimeoutError" ? "Getting a price took too long. Please try again." : (e as Error).message;
+      setError(msg); setStep("idle");
     }
   }
 
   async function approve() {
-    if (!quote) return;
+    if (!quote || busy.current) return;
+    busy.current = true;
     setError(""); setStep("approving");
     try {
       // Approve ONLY the exact amount for this purchase, never unlimited.
@@ -109,30 +124,35 @@ export function BuyPanel({ stock, liveData }: { stock: Stock; liveData: boolean 
       setApproveHash(hash);
     } catch (e) {
       setError(friendlyError((e as Error).message)); setStep("quoted");
+    } finally {
+      busy.current = false;
     }
   }
 
   async function buy() {
-    if (!quote || !address) return;
+    if (!quote || !address || busy.current) return;
+    busy.current = true;
     setError(""); setStep("building");
     try {
       const res = await fetch("/api/build", {
         method: "POST", headers: { "content-type": "application/json" },
         body: JSON.stringify({ routeSummary: quote.routeSummary, sender: address }),
       });
-      const tx = await res.json();
-      if (!res.ok) throw new Error(tx.error || "Couldn't prepare the purchase.");
+      const tx = await res.json().catch(() => ({}));
+      if (!res.ok || !tx.to || !tx.data) throw new Error(tx.error || "Couldn't prepare the purchase. Please get a new quote.");
       if (tx.to?.toLowerCase() !== quote.routerAddress.toLowerCase()) throw new Error("Safety check failed: the swap address changed. Please get a new quote.");
       setStep("buying");
       const hash = await sendTransactionAsync({ to: tx.to, data: withAttribution(tx.data), value: BigInt(tx.value || 0), chainId: base.id });
       setTxHash(hash);
     } catch (e) {
       setError(friendlyError((e as Error).message)); setStep("quoted");
+    } finally {
+      busy.current = false;
     }
   }
 
   const shareText = encodeURIComponent(
-    `I just bought my first tokenized ${stock.ticker} stock on @base, explained in plain English by Stock Buddy.`,
+    `I just bought tokenized ${stock.ticker} on @base with Stock Buddy. It showed me the price gap first. ${typeof window !== "undefined" ? window.location.origin : ""}`,
   );
 
   return (
@@ -163,12 +183,16 @@ export function BuyPanel({ stock, liveData }: { stock: Stock; liveData: boolean 
             <span>Amount in USDC (${MIN_BUY_USDC} to ${MAX_BUY_USDC})</span>
             <div className="amount">
               <span aria-hidden>$</span>
-              <input inputMode="decimal" value={amount} onChange={(e) => setAmount(e.target.value.replace(/[^0-9.]/g, ""))} aria-label="Amount in USDC" disabled={!!quote && step !== "quoted"} />
+              <input inputMode="decimal" value={amount} onChange={(e) => {
+                const raw = e.target.value;
+                const v = /^\d{0,3}(\.\d{0,2})?$/.test(raw) ? raw : raw.replace(/usdc|\$|,|\s/gi, "");
+                if (/^\d{0,3}(\.\d{0,2})?$/.test(v)) setAmount(v);
+              }} aria-label="Amount in USDC" disabled={step === "quoting" || (!!quote && step !== "quoted")} />
             </div>
           </label>
           <div className="chips">
             {["5", "10", "25"].map((v) => (
-              <button key={v} className={`chip ${amount === v ? "chip-on" : ""}`} onClick={() => setAmount(v)}>${v}</button>
+              <button key={v} className={`chip ${amount === v ? "chip-on" : ""}`} onClick={() => setAmount(v)} disabled={step === "quoting" || (!!quote && step !== "quoted")}>${v}</button>
             ))}
           </div>
           {balance !== undefined && <p className="muted small">Your USDC on Base: {formatUsd(balance)}</p>}
@@ -184,7 +208,7 @@ export function BuyPanel({ stock, liveData }: { stock: Stock; liveData: boolean 
           {quote && (
             <div className="quote">
               <dl>
-                <dt>You pay</dt><dd>{formatUsd(usdc)} USDC</dd>
+                <dt>You pay</dt><dd>{formatUsd(quotedUsdc)} USDC</dd>
                 <dt>You get (about)</dt><dd>{quote.amountOutTokens.toLocaleString("en-US", { maximumFractionDigits: 6 })} {stock.symbol}</dd>
                 <dt>That's roughly</dt><dd>{(quote.amountOutTokens * stock.multiplier).toLocaleString("en-US", { maximumFractionDigits: 6 })} {stock.ticker} shares</dd>
                 <dt>Trading price now</dt><dd>{formatUsd(quote.pricePerToken)} per token</dd>
@@ -204,7 +228,7 @@ export function BuyPanel({ stock, liveData }: { stock: Stock; liveData: boolean 
 
               {needsApproval ? (
                 <button className="btn btn-primary btn-block" onClick={approve} disabled={!agree || step === "approving"}>
-                  {step === "approving" ? (approveHash ? "Waiting for confirmation…" : "Check your wallet…") : `Step 1 of 2: Allow ${formatUsd(usdc)} USDC`}
+                  {step === "approving" ? (approveHash ? "Waiting for confirmation…" : "Check your wallet…") : `Step 1 of 2: Let the swap use ${formatUsd(quotedUsdc)} USDC`}
                 </button>
               ) : (
                 <button className="btn btn-primary btn-block" onClick={buy} disabled={!agree || step === "building" || step === "buying" || needed === 0n}>

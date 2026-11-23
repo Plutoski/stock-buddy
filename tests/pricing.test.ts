@@ -31,11 +31,11 @@ test("missing or broken prices give no gap instead of NaN", () => {
 test("gap sentence explains direction and the closed-market reason", () => {
   const above = gapSentence(3.02, false)!;
   assert.match(above, /3\.0% higher/);
-  assert.match(above, /closed/);
+  assert.match(above, /frozen/);
   assert.match(above, /pay more/);
   const below = gapSentence(-2.5, true)!;
   assert.match(below, /2\.5% lower/);
-  assert.match(below, /open/);
+  assert.match(below, /updating/);
   assert.match(gapSentence(0.1, true)!, /in line/);
 });
 

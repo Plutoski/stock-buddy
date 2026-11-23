@@ -44,8 +44,8 @@ export function gapSentence(gap: number | undefined, marketOpen: boolean): strin
   const dir = gap > 0 ? "higher" : "lower";
   const pct = Math.abs(gap).toFixed(1);
   const why = marketOpen
-    ? "Small gaps can happen even while the US market is open, because trading on Base has its own buyers and sellers."
-    : "This usually happens while the US market is closed: the official price is frozen, but people keep trading on Base.";
+    ? "Small gaps can happen even while the official price is updating, because trading on Base has its own buyers and sellers."
+    : "This usually happens while the official price is frozen, for example at weekends, but people keep trading on Base.";
   const meaning = gap > 0
     ? "If you buy now, you pay more than the official price."
     : "If you buy now, you pay less than the official price, but that gap can close either way when the market reopens.";

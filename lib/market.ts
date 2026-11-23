@@ -114,7 +114,9 @@ export function getMarketStatus(at: Date = new Date()): MarketStatus {
     isOpen: false,
     label: "US market closed",
     explanation:
-      `The US market is closed because ${why}. You can still trade the token on Base, but the official reference price is frozen at its last value, so the trading price can drift away from it.`,
+      state === "closed-overnight"
+        ? `The US market is closed because ${why}. You can still trade the token on Base. The official reference price may update less often until the market reopens, so the trading price can drift away from it.`
+        : `The US market is closed because ${why}. You can still trade the token on Base, but the official reference price is frozen at its last value, so the trading price can drift away from it.`,
     nextChangeAt: reopen.toISOString(),
     nextChangeLabel: "Opens",
   };
@@ -140,4 +142,13 @@ export function isPriceStale(updatedAt: string | undefined, market: MarketStatus
   const ageH = (now.getTime() - new Date(updatedAt).getTime()) / 3_600_000;
   if (!market.isOpen) return true; // frozen by design while the market is closed
   return ageH > 26; // the feed should refresh at least every ~24h while open
+}
+
+/** The official price counts as "frozen" when it hasn't updated for 30+ minutes. */
+export const FROZEN_AFTER_MS = 30 * 60_000;
+export function isOfficialPriceFrozen(updatedAt: string | undefined, now: Date = new Date()): boolean {
+  if (!updatedAt) return true;
+  const t = new Date(updatedAt).getTime();
+  if (!Number.isFinite(t)) return true;
+  return now.getTime() - t > FROZEN_AFTER_MS;
 }

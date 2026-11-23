@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 const KEY = "stockbuddy.ack.v1";
 
@@ -15,7 +15,23 @@ export function EligibilityGate() {
   const [show, setShow] = useState(false);
   const [checks, setChecks] = useState({ age: false, us: false, advice: false });
 
+  const dialog = useRef<HTMLDivElement>(null);
   useEffect(() => { if (!readAck()) setShow(true); }, []);
+  useEffect(() => {
+    if (!show) return;
+    const el = dialog.current;
+    el?.querySelector<HTMLInputElement>("input")?.focus();
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key !== "Tab" || !el) return;
+      const items = [...el.querySelectorAll<HTMLElement>("input, button:not([disabled])")];
+      if (!items.length) return;
+      const first = items[0], last = items[items.length - 1];
+      if (e.shiftKey && document.activeElement === first) { e.preventDefault(); last.focus(); }
+      else if (!e.shiftKey && document.activeElement === last) { e.preventDefault(); first.focus(); }
+    };
+    document.addEventListener("keydown", onKey);
+    return () => document.removeEventListener("keydown", onKey);
+  }, [show]);
   if (!show) return null;
 
   const all = checks.age && checks.us && checks.advice;
@@ -23,7 +39,7 @@ export function EligibilityGate() {
 
   return (
     <div className="modal-backdrop" role="dialog" aria-modal="true" aria-labelledby="gate-title">
-      <div className="modal">
+      <div className="modal" ref={dialog}>
         <h2 id="gate-title">Before you start</h2>
         <p className="muted">
           Stock Buddy explains Coinbase tokenized stocks on Base in plain language. It's a learning tool, not a broker or an adviser.

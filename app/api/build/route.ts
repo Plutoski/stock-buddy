@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { isAddress } from "viem";
 import { KYBER_API, DEFAULT_SLIPPAGE_BIPS } from "@/lib/constants.ts";
 import { kyberHeaders } from "@/lib/kyber.ts";
+import { getStocks } from "@/lib/stocks.ts";
+import { USDC_ADDRESS } from "@/lib/constants.ts";
 
 export const dynamic = "force-dynamic";
 
@@ -12,6 +14,13 @@ export async function POST(req: NextRequest) {
   const sender = body?.sender;
   if (!body?.routeSummary || !isAddress(sender)) {
     return NextResponse.json({ error: "Missing quote or wallet address." }, { status: 400 });
+  }
+  // Only build swaps from USDC into a token on Coinbase's official list.
+  const rs = body.routeSummary as { tokenIn?: string; tokenOut?: string };
+  const { stocks, source } = await getStocks();
+  const allowed = source === "live" && stocks.some((s) => s.address.toLowerCase() === String(rs.tokenOut || "").toLowerCase());
+  if (!allowed || String(rs.tokenIn || "").toLowerCase() !== USDC_ADDRESS.toLowerCase()) {
+    return NextResponse.json({ error: "That swap isn't allowed. Please get a new quote." }, { status: 400 });
   }
   try {
     const res = await fetch(`${KYBER_API}/route/build`, {

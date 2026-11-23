@@ -61,7 +61,7 @@ export async function getLivePrice(stock: Stock): Promise<LivePrice | null> {
   if (hit && Date.now() - hit.at < TTL_MS) return hit.value;
   let value: LivePrice | null = null;
   try {
-    const q = await getKyberQuote(stock, PRICE_PROBE_USDC, 6000);
+    const q = await getKyberQuote(stock, PRICE_PROBE_USDC, 4000);
     if (q) {
       value = {
         address: stock.address,
@@ -74,12 +74,13 @@ export async function getLivePrice(stock: Stock): Promise<LivePrice | null> {
   } catch (e) {
     console.error("[price]", stock.symbol, e);
   }
-  cache.set(key, { at: Date.now(), value });
+  // A failure is remembered for ~10s only, so a brief hiccup doesn't hide prices for 90s.
+  cache.set(key, { at: value ? Date.now() : Date.now() - TTL_MS + 10_000, value });
   return value;
 }
 
 /** Prices for many stocks, a few at a time. */
-export async function getLivePrices(stocks: Stock[], concurrency = 5): Promise<LivePrice[]> {
+export async function getLivePrices(stocks: Stock[], concurrency = 6): Promise<LivePrice[]> {
   const out: LivePrice[] = [];
   for (let i = 0; i < stocks.length; i += concurrency) {
     const batch = await Promise.all(stocks.slice(i, i + concurrency).map(getLivePrice));

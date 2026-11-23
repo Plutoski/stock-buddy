@@ -3,7 +3,7 @@
 import type { Stock } from "@/lib/types.ts";
 import type { MarketStatus } from "@/lib/market.ts";
 import { explainStock, formatUsd, sharesPerToken } from "@/lib/explain.ts";
-import { timeAgo } from "@/lib/market.ts";
+import { timeAgo, isOfficialPriceFrozen } from "@/lib/market.ts";
 import { BuyPanel } from "./BuyPanel.tsx";
 import { Chat } from "./Chat.tsx";
 import { StockIcon, GapPill } from "./StockList.tsx";
@@ -13,7 +13,8 @@ export function StockDetail({ stock, market, liveData, onBack, livePrice, priceL
   stock: Stock; market: MarketStatus; liveData: boolean; onBack: () => void;
   livePrice?: LivePrice; priceLoading?: boolean;
 }) {
-  const gapText = gapSentence(livePrice?.gapPct, market.isOpen);
+  const frozen = isOfficialPriceFrozen(stock.navPriceUpdatedAt);
+  const gapText = gapSentence(livePrice?.gapPct, !frozen);
   return (
     <div className="detail">
       <button className="btn btn-link back" onClick={onBack}>← All stocks</button>
@@ -45,7 +46,7 @@ export function StockDetail({ stock, market, liveData, onBack, livePrice, priceL
         </div>
         <div className="fact">
           <span className="muted small">Price status</span>
-          <strong className={`big ${market.isOpen ? "ok" : "warn-text"}`}>{market.isOpen ? "Updating" : "Frozen"}</strong>
+          <strong className={`big ${frozen ? "warn-text" : "ok"}`}>{frozen ? "Frozen" : "Updating"}</strong>
           <span className="muted small">{market.label}</span>
         </div>
       </section>
@@ -57,7 +58,7 @@ export function StockDetail({ stock, market, liveData, onBack, livePrice, priceL
       </section>
 
       <div className="detail-grid">
-        <BuyPanel stock={stock} liveData={liveData} />
+        <BuyPanel key={stock.address} stock={stock} liveData={liveData} />
         <Chat stock={stock} />
       </div>
 

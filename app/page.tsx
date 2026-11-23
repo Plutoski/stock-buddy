@@ -17,9 +17,10 @@ export default function Home() {
   const { data, isLoading, isError, refetch } = useQuery<Data>({
     queryKey: ["stocks"],
     queryFn: async () => {
-      const res = await fetch("/api/stocks");
-      if (!res.ok) throw new Error("Failed to load stocks");
-      return res.json();
+      const res = await fetch("/api/stocks", { signal: AbortSignal.timeout(20_000) });
+      const body = await res.json().catch(() => null);
+      if (!res.ok || !body || !Array.isArray(body.stocks) || !body.market) throw new Error("Failed to load stocks");
+      return body;
     },
     refetchInterval: 60_000,
   });
@@ -27,19 +28,25 @@ export default function Home() {
 
   // Live trading prices for the biggest stocks (refreshed every 90s).
   const live = data?.source === "live";
-  const { data: topPrices } = useQuery<{ prices: LivePrice[] }>({
+  const fetchPrices = async (url: string): Promise<{ prices: LivePrice[] }> => {
+    const res = await fetch(url, { signal: AbortSignal.timeout(25_000) });
+    const body = await res.json().catch(() => null);
+    if (!res.ok || !body || !Array.isArray(body.prices)) throw new Error("prices unavailable");
+    return { prices: body.prices.filter((p: LivePrice) => p && typeof p.address === "string" && Number.isFinite(p.tradingPrice)) };
+  };
+  const { data: topPrices, isLoading: topLoading } = useQuery<{ prices: LivePrice[] }>({
     queryKey: ["prices", "top"],
-    queryFn: async () => (await fetch("/api/prices")).json(),
+    queryFn: () => fetchPrices("/api/prices"),
     enabled: live,
     refetchInterval: 90_000,
   });
   // Plus the selected stock, if it isn't one of the top ones.
   const selectedAddr = selected?.address;
   const inTop = !!topPrices?.prices.some((p) => p.address.toLowerCase() === selectedAddr?.toLowerCase());
-  const { data: selPrice, isFetching: selLoading } = useQuery<{ prices: LivePrice[] }>({
+  const { data: selPrice, isLoading: selLoading } = useQuery<{ prices: LivePrice[] }>({
     queryKey: ["prices", selectedAddr],
-    queryFn: async () => (await fetch(`/api/prices?tokens=${selectedAddr}`)).json(),
-    enabled: live && !!selectedAddr && !!topPrices && !inTop,
+    queryFn: () => fetchPrices(`/api/prices?tokens=${selectedAddr}`),
+    enabled: live && !!selectedAddr && !topLoading && !inTop,
     refetchInterval: 90_000,
   });
   const priceMap = new Map<string, LivePrice>();
@@ -75,7 +82,7 @@ export default function Home() {
 
       {market && (
         <div className={`banner ${market.isOpen ? "banner-ok" : "banner-info"}`}>
-          <strong>{market.label}.</strong> {market.isOpen ? "Official prices are updating." : "Official prices are frozen; trading on Base continues 24/7."}{" "}
+          <strong>{market.label}.</strong> {market.isOpen ? "Official prices are updating." : market.state === "closed-overnight" ? "Official prices may update less often. Trading on Base continues 24/7." : "Official prices are frozen. Trading on Base continues 24/7."}{" "}
           <span className="muted">
             {market.nextChangeLabel} {new Date(market.nextChangeAt).toLocaleString(undefined, { weekday: "short", hour: "numeric", minute: "2-digit" })} your time.
           </span>
@@ -102,7 +109,7 @@ export default function Home() {
         <section className="content">
           {selected && market ? (
             <StockDetail stock={selected} market={market} liveData={live} onBack={() => choose(null)}
-              livePrice={priceMap.get(selected.address.toLowerCase())} priceLoading={live && (!topPrices || selLoading)} />
+              livePrice={priceMap.get(selected.address.toLowerCase())} priceLoading={live && (topLoading || selLoading)} />
           ) : (
             <div className="welcome">
               {market && <p className="card">{market.explanation}</p>}

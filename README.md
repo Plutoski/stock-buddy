@@ -18,7 +18,7 @@ Stock Buddy shows all of this in plain English, answers questions in a chat that
 | Ask "Should I buy this?" in the chat | A polite refusal to give advice, with an offer to explain instead |
 | Ask "Why is the price different at night?" | A clear explanation of market hours and price drift |
 | Connect a wallet and tap "See what I'd get" | A quote showing the trading price vs the official reference, with a warning if they differ by 1% or more |
-| Check any Stock Buddy purchase on base.dev | Every transaction carries our ERC-8021 Builder Code |
+| Open any purchase receipt on Basescan | Every swap goes through the KyberSwap router and is tagged with the source `stock-buddy` |
 
 ## Safety by design
 
@@ -33,7 +33,7 @@ Stock Buddy shows all of this in plain English, answers questions in a chat that
 
 - `GET https://api.coinbase.com/v1/tokenized-stocks`: official token list, multipliers, reference values.
 - KyberSwap aggregator on Base: best USDC → stock token route.
-- `ox/erc8021`: Builder Code suffix appended to every transaction.
+- `ox/erc8021`: optional Builder Code suffix, used only if `NEXT_PUBLIC_BUILDER_CODE` is set.
 - Next.js 15, wagmi + viem, Base Account (passkey wallet on phone or laptop) and browser wallets.
 - AI chat via the Anthropic API (optional). Without a key, built-in answers are used.
 
@@ -43,14 +43,14 @@ Stock Buddy shows all of this in plain English, answers questions in a chat that
 npm install
 cp .env.example .env.local   # then fill in the values
 npm run dev                  # open http://localhost:3000
-npm test                     # 29 logic tests
+npm test                     # automated logic tests
 ```
 
 ## Environment variables
 
 | Name | Required | What it is |
 | --- | --- | --- |
-| `NEXT_PUBLIC_BUILDER_CODE` | Yes, for traction | Your Base Builder Code (base.dev → Settings → Builder Codes) |
+| `NEXT_PUBLIC_BUILDER_CODE` | Optional | A Base Builder Code (ERC-8021). Not set in the live app |
 | `ANTHROPIC_API_KEY` | Optional | Turns on AI answers in the chat |
 | `ANTHROPIC_MODEL` | Optional | Defaults to `claude-haiku-5-5` |
 | `KYBER_CLIENT_ID` | Optional | A short name for your app sent to KyberSwap |

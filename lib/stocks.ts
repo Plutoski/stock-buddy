@@ -75,19 +75,29 @@ export async function fetchLiveStocks(): Promise<Stock[]> {
 }
 
 let cache: { at: number; data: StocksResponse } | null = null;
+let inflight: Promise<StocksResponse> | null = null;
+const FRESH_MS = 60_000;
+const STALE_OK_MS = 30 * 60_000; // keep using the last good list for up to 30 min if Coinbase blips
 
 export async function getStocks(): Promise<StocksResponse> {
   if (process.env.USE_SAMPLE_DATA === "1") return sample("Sample mode is switched on.");
-  if (cache && Date.now() - cache.at < 60_000) return cache.data;
-  try {
-    const stocks = await fetchLiveStocks();
-    const data: StocksResponse = { source: "live", fetchedAt: new Date().toISOString(), stocks };
-    cache = { at: Date.now(), data };
-    return data;
-  } catch (err) {
-    console.error("[stocks] live fetch failed, using sample data:", err);
-    return sample("Live data couldn't be reached, so this is sample data. Purchases are switched off.");
-  }
+  if (cache && Date.now() - cache.at < FRESH_MS) return cache.data;
+  if (inflight) return inflight; // many visitors at once share one Coinbase request
+  inflight = (async () => {
+    try {
+      const stocks = await fetchLiveStocks();
+      const data: StocksResponse = { source: "live", fetchedAt: new Date().toISOString(), stocks };
+      cache = { at: Date.now(), data };
+      return data;
+    } catch (err) {
+      console.error("[stocks] live fetch failed:", err);
+      if (cache && Date.now() - cache.at < STALE_OK_MS) return cache.data; // last good live data
+      return sample("Live data couldn't be reached, so this is sample data. Purchases are switched off.");
+    } finally {
+      inflight = null;
+    }
+  })();
+  return inflight;
 }
 
 function sample(note: string): StocksResponse {

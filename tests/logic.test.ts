@@ -178,3 +178,33 @@ test("a stock without a reference price is explained, not shown as $NaN", () => 
   assert.match(text, /hasn't published/);
   assert.doesNotMatch(text, /NaN|undefined/);
 });
+
+// Regression: a wrong-case letter in the USDC address made every purchase fail (viem rejects bad checksums).
+import { isAddress } from "viem";
+import { USDC_ADDRESS } from "../lib/constants.ts";
+test("USDC address is a valid checksummed address", () => {
+  assert.equal(isAddress(USDC_ADDRESS), true);
+  assert.equal(USDC_ADDRESS, "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913");
+});
+
+test("a Coinbase blip keeps serving the last good live list instead of switching to sample data", async () => {
+  const { getStocks } = await import("../lib/stocks.ts?blip=1");
+  const original = globalThis.fetch;
+  const realNow = Date.now;
+  let calls = 0;
+  globalThis.fetch = (async () => {
+    calls++;
+    if (calls === 1) return new Response(JSON.stringify({ tokens: [{ contract_address: "0x" + "c".repeat(40), symbol: "NVDAc", name: "NVIDIA", decimals: 8, multiplier: 1, nav_price: 130, nav_price_updated_at: "2026-11-20T21:00:00Z" }] }));
+    return new Response("upstream down", { status: 503 });
+  }) as typeof fetch;
+  try {
+    const first = await getStocks();
+    assert.equal(first.source, "live");
+    Date.now = () => realNow() + 61_000; // cache is no longer fresh
+    const second = await getStocks();
+    assert.equal(second.source, "live", "should keep the last good live data");
+    assert.equal(calls, 2);
+  } finally {
+    globalThis.fetch = original; Date.now = realNow;
+  }
+});

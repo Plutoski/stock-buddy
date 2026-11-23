@@ -57,11 +57,20 @@ export function BuyPanel({ stock, liveData }: { stock: Stock; liveData: boolean 
   useEffect(() => { if (approveReceipt.isSuccess) { refetchAllowance(); setStep("quoted"); } }, [approveReceipt.isSuccess, refetchAllowance]);
   useEffect(() => { if (buyReceipt.isSuccess) { setStep("done"); refetchBalance(); } }, [buyReceipt.isSuccess, refetchBalance]);
   useEffect(() => {
-    if (buyReceipt.isError || (buyReceipt.data && buyReceipt.data.status === "reverted")) {
+    if (buyReceipt.data && buyReceipt.data.status === "reverted") {
       setError("The purchase didn't go through, so your USDC wasn't spent. Prices may have moved. Get a new quote and try again.");
       setStep("idle"); setQuote(null);
+    } else if (buyReceipt.isError) {
+      // We couldn't read the result. The purchase may still have worked, so never claim it didn't.
+      setError("We couldn't confirm the result yet. Check your receipt on Basescan before trying again.");
     }
   }, [buyReceipt.isError, buyReceipt.data]);
+  useEffect(() => {
+    if (approveReceipt.isError || (approveReceipt.data && approveReceipt.data.status === "reverted")) {
+      setError("The approval didn't go through. Nothing was spent. Please try again.");
+      setApproveHash(undefined); setStep("quoted");
+    }
+  }, [approveReceipt.isError, approveReceipt.data]);
 
   if (!liveData) {
     return (
@@ -209,6 +218,9 @@ export function BuyPanel({ stock, liveData }: { stock: Stock; liveData: boolean 
       )}
 
       {error && <p className="error small" role="alert">{error}</p>}
+      {txHash && step !== "done" && (
+        <p className="small"><a href={BASESCAN_TX + txHash} target="_blank" rel="noreferrer">View this transaction on Basescan ↗</a></p>
+      )}
       {!BUILDER_CODE && process.env.NODE_ENV !== "production" && <p className="muted tiny">Developer note: no Builder Code set, so purchases won't be attributed.</p>}
     </section>
   );

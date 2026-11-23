@@ -1,5 +1,5 @@
 // USDC on Base mainnet (6 decimals). Users pay for stock tokens in USDC.
-export const USDC_ADDRESS = "0x833589fCD6eDb6E08f4c7C32D4f71B54bdA02913" as const;
+export const USDC_ADDRESS = "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913" as const;
 export const USDC_DECIMALS = 6;
 
 export const COINBASE_STOCKS_API = "https://api.coinbase.com/v1/tokenized-stocks";

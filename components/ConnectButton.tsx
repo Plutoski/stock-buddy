@@ -61,5 +61,6 @@ export function friendlyError(msg: string): string {
   if (/rejected|denied|cancel/i.test(msg)) return "You cancelled the request in your wallet. Nothing happened.";
   if (/provider not found|no provider|not installed/i.test(msg)) return "No browser wallet found. Try Base Account instead, which works without an extension.";
   if (/insufficient funds/i.test(msg)) return "Not enough ETH on Base for the network fee, or not enough USDC.";
+  if (/does not match the target chain|chain mismatch|unrecognized chain|switch.*chain/i.test(msg)) return "Your wallet is on a different network. Switch it to Base in your wallet, then try again.";
   return msg.length > 160 ? msg.slice(0, 160) + "…" : msg;
 }

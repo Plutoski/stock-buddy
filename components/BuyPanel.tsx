@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import { encodeFunctionData, erc20Abi, formatUnits, parseUnits } from "viem";
 import { base } from "wagmi/chains";
 import {
-  useAccount, useBalance, useChainId, useReadContract, useSendTransaction, useSwitchChain, useWaitForTransactionReceipt,
+  useAccount, useBalance, useReadContract, useSendTransaction, useSwitchChain, useWaitForTransactionReceipt,
 } from "wagmi";
 import type { Quote, Stock } from "@/lib/types.ts";
 import { USDC_ADDRESS, USDC_DECIMALS, MIN_BUY_USDC, MAX_BUY_USDC, BASESCAN_TX } from "@/lib/constants.ts";
@@ -20,9 +20,15 @@ export function priceGapPct(trade: number, reference?: number): number | undefin
 }
 
 export function BuyPanel({ stock, liveData }: { stock: Stock; liveData: boolean }) {
-  const { address, isConnected } = useAccount();
-  const chainId = useChainId();
-  const { switchChain, isPending: switching } = useSwitchChain();
+  // The wallet's REAL network. (wagmi's useChainId() falls back to the app's own chain
+  // when the wallet is on a network the app doesn't know, which hid the problem.)
+  const { address, isConnected, chainId: walletChainId } = useAccount();
+  const { switchChain, switchChainAsync, isPending: switching } = useSwitchChain();
+  const onBase = walletChainId === base.id;
+  async function ensureBase() {
+    if (onBase) return;
+    await switchChainAsync({ chainId: base.id });
+  }
 
   const [amount, setAmount] = useState("5");
   const [quote, setQuote] = useState<Quote | null>(null);
@@ -145,6 +151,7 @@ export function BuyPanel({ stock, liveData }: { stock: Stock; liveData: boolean 
     busy.current = true;
     setError(""); setStep("approving");
     try {
+      await ensureBase();
       // Approve ONLY the exact amount for this purchase, never unlimited.
       const data = encodeFunctionData({ abi: erc20Abi, functionName: "approve", args: [quote.routerAddress, BigInt(quote.amountIn)] });
       const hash = await sendTransactionAsync({ to: USDC_ADDRESS, data: withAttribution(data), chainId: base.id });
@@ -169,6 +176,7 @@ export function BuyPanel({ stock, liveData }: { stock: Stock; liveData: boolean 
       if (!res.ok || !tx.to || !tx.data) throw new Error(tx.error || "Couldn't prepare the purchase. Please get a new quote.");
       if (tx.to?.toLowerCase() !== quote.routerAddress.toLowerCase()) throw new Error("Safety check failed: the swap address changed. Please get a new quote.");
       setStep("buying");
+      await ensureBase();
       const hash = await sendTransactionAsync({ to: tx.to, data: withAttribution(tx.data), value: BigInt(tx.value || 0), chainId: base.id });
       setTxHash(hash);
     } catch (e) {
@@ -191,10 +199,13 @@ export function BuyPanel({ stock, liveData }: { stock: Stock; liveData: boolean 
           <p className="muted">To buy, you need a wallet with USDC on Base. No wallet yet? Choose Base Account: it creates one in seconds with a passkey. Stock Buddy never holds your money.</p>
           <ConnectButton />
         </>
-      ) : chainId !== base.id ? (
+      ) : !onBase ? (
+        <>
+        <p className="muted small">Your wallet is on a different network. Stock Buddy only works on Base.</p>
         <button className="btn btn-primary" onClick={() => switchChain({ chainId: base.id })} disabled={switching}>
           {switching ? "Switching…" : "Switch to Base network"}
         </button>
+        </>
       ) : step === "done" && txHash ? (
         <div className="success">
           <p><strong>Done!</strong> You bought about {quote?.amountOutTokens.toLocaleString("en-US", { maximumFractionDigits: 6 })} {stock.symbol}.</p>

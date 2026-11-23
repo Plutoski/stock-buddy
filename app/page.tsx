@@ -121,7 +121,7 @@ export default function Home() {
 
       <footer className="footer muted small">
         Stock Buddy is an educational tool, not a broker or financial adviser. Coinbase tokenized stocks are available only to eligible people outside the United States.
-        Prices can go down as well as up. Built for Base Stocks Maxxing.
+        Prices can go down as well as up. Built for Base Stocks Maxxing. <a href="/proof">See verified purchases</a>.
       </footer>
     </>
   );

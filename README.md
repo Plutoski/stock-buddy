@@ -19,6 +19,7 @@ Stock Buddy shows all of this in plain English, answers questions in a chat that
 | Ask "Why is the price different at night?" | A clear explanation of market hours and price drift |
 | Connect a wallet and tap "See what I'd get" | A quote showing the trading price vs the official reference, with a warning if they differ by 1% or more |
 | Open any purchase receipt on Basescan | Every swap goes through the KyberSwap router and is tagged with the source `stock-buddy` |
+| Open `/proof` | Every purchase made through Stock Buddy, checked on the Base blockchain, with Basescan links and unique-buyer counts (the builder's own wallets excluded) |
 
 ## Safety by design
 
@@ -54,6 +55,9 @@ npm test                     # automated logic tests
 | `ANTHROPIC_API_KEY` | Optional | Turns on AI answers in the chat |
 | `ANTHROPIC_MODEL` | Optional | Defaults to `claude-haiku-5-5` |
 | `KYBER_CLIENT_ID` | Optional | A short name for your app sent to KyberSwap |
+| `KV_REST_API_URL`, `KV_REST_API_TOKEN` | For `/proof` | Added automatically when you connect Upstash Redis in Vercel > Storage |
+| `PROOF_EXCLUDE_WALLETS` | For `/proof` | Comma-separated wallet addresses of the builder, left out of the public numbers |
+| `BASE_RPC_URL` | Optional | Base RPC used to verify purchases. Defaults to https://mainnet.base.org |
 | `USE_SAMPLE_DATA` | No | `1` forces sample data for offline testing |
 
 ## Disclaimer

@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import { encodeFunctionData, erc20Abi, formatUnits, parseUnits } from "viem";
 import { base } from "wagmi/chains";
 import {
-  useAccount, useChainId, useReadContract, useSendTransaction, useSwitchChain, useWaitForTransactionReceipt,
+  useAccount, useBalance, useChainId, useReadContract, useSendTransaction, useSwitchChain, useWaitForTransactionReceipt,
 } from "wagmi";
 import type { Quote, Stock } from "@/lib/types.ts";
 import { USDC_ADDRESS, USDC_DECIMALS, MIN_BUY_USDC, MAX_BUY_USDC, BASESCAN_TX } from "@/lib/constants.ts";
@@ -49,6 +49,10 @@ export function BuyPanel({ stock, liveData }: { stock: Stock; liveData: boolean 
     query: { enabled: !!address && !!quote },
   });
 
+  const { data: ethBalance } = useBalance({ address, chainId: base.id, query: { enabled: !!address } });
+  const [copied, setCopied] = useState(false);
+  const [proofState, setProofState] = useState<"idle" | "saved" | "failed">("idle");
+
   const approveReceipt = useWaitForTransactionReceipt({ hash: approveHash, chainId: base.id });
   const buyReceipt = useWaitForTransactionReceipt({ hash: txHash, chainId: base.id });
 
@@ -62,6 +66,24 @@ export function BuyPanel({ stock, liveData }: { stock: Stock; liveData: boolean 
 
   useEffect(() => { if (approveReceipt.isSuccess) { refetchAllowance(); setStep("quoted"); } }, [approveReceipt.isSuccess, refetchAllowance]);
   useEffect(() => { if (buyReceipt.isSuccess) { setStep("done"); refetchBalance(); } }, [buyReceipt.isSuccess, refetchBalance]);
+  // After a successful purchase, ask the server to verify it onchain and add it to the public /proof list.
+  useEffect(() => {
+    if (!buyReceipt.isSuccess || !txHash) return;
+    let cancelled = false;
+    (async () => {
+      for (const wait of [1500, 5000, 15000]) {
+        await new Promise((r) => setTimeout(r, wait));
+        if (cancelled) return;
+        try {
+          const res = await fetch("/api/proof", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ hash: txHash }) });
+          if (res.ok) { setProofState("saved"); return; }
+          if (res.status === 422 || res.status === 400) break; // not a countable purchase; don't retry
+        } catch { /* try again */ }
+      }
+      if (!cancelled) setProofState("failed");
+    })();
+    return () => { cancelled = true; };
+  }, [buyReceipt.isSuccess, txHash]);
   useEffect(() => {
     if (buyReceipt.data && buyReceipt.data.status === "reverted") {
       setError("The purchase didn't go through, so your USDC wasn't spent. Prices may have moved. Get a new quote and try again.");
@@ -91,6 +113,11 @@ export function BuyPanel({ stock, liveData }: { stock: Stock; liveData: boolean 
   const needed = amountValid ? parseUnits(usdc.toFixed(USDC_DECIMALS), USDC_DECIMALS) : 0n;
   const needsApproval = quote && allowance !== undefined ? allowance < BigInt(quote.amountIn) : true;
   const notEnough = balance !== undefined && amountValid && balance < usdc;
+  const noUsdc = balance !== undefined && balance < MIN_BUY_USDC;
+  const noEth = ethBalance !== undefined && ethBalance.value === 0n;
+  async function copyAddress() {
+    try { await navigator.clipboard.writeText(address || ""); setCopied(true); setTimeout(() => setCopied(false), 2000); } catch { /* clipboard blocked */ }
+  }
   const gap = quote ? priceGapPct(quote.pricePerToken, stock.navPrice) : undefined;
   const quotedUsdc = quote ? Number(formatUnits(BigInt(quote.amountIn), USDC_DECIMALS)) : 0;
 
@@ -161,7 +188,7 @@ export function BuyPanel({ stock, liveData }: { stock: Stock; liveData: boolean 
 
       {!isConnected ? (
         <>
-          <p className="muted">Connect a wallet with some USDC on Base to buy. Stock Buddy never holds your money.</p>
+          <p className="muted">To buy, you need a wallet with USDC on Base. No wallet yet? Choose Base Account: it creates one in seconds with a passkey. Stock Buddy never holds your money.</p>
           <ConnectButton />
         </>
       ) : chainId !== base.id ? (
@@ -172,6 +199,8 @@ export function BuyPanel({ stock, liveData }: { stock: Stock; liveData: boolean 
         <div className="success">
           <p><strong>Done!</strong> You bought about {quote?.amountOutTokens.toLocaleString("en-US", { maximumFractionDigits: 6 })} {stock.symbol}.</p>
           <p className="small"><a href={BASESCAN_TX + txHash} target="_blank" rel="noreferrer">View your receipt on Basescan ↗</a></p>
+          {proofState === "saved" && <p className="small">Verified and added to the <a href="/proof">public purchase list</a>.</p>}
+          {proofState === "failed" && <p className="small muted">We couldn&apos;t add it to the <a href="/proof">public list</a> yet. You can paste your receipt link there later.</p>}
           <div className="row">
             <a className="btn btn-ghost" href={`https://x.com/intent/tweet?text=${shareText}`} target="_blank" rel="noreferrer">Share on X</a>
             <button className="btn btn-ghost" onClick={() => { setStep("idle"); setQuote(null); setTxHash(undefined); setApproveHash(undefined); setAgree(false); }}>Buy more</button>
@@ -196,8 +225,27 @@ export function BuyPanel({ stock, liveData }: { stock: Stock; liveData: boolean 
             ))}
           </div>
           {balance !== undefined && <p className="muted small">Your USDC on Base: {formatUsd(balance)}</p>}
+          {noUsdc && (
+            <div className="helper" role="note">
+              <strong>No USDC yet? Here&apos;s how to get some.</strong>
+              <ol>
+                <li>Buy USDC on Coinbase or another exchange you use (1 USDC ≈ $1).</li>
+                <li>Send it to your wallet address below and choose the <strong>Base</strong> network. Other networks won&apos;t arrive here.</li>
+                <li>Come back here. Your balance updates by itself.</li>
+              </ol>
+              <div className="addr-row">
+                <span className="addr">{address}</span>
+                <button className="btn btn-ghost small" onClick={copyAddress}>{copied ? "Copied" : "Copy address"}</button>
+              </div>
+            </div>
+          )}
+          {noEth && !noUsdc && (
+            <p className="helper small" role="note">
+              Your wallet has no ETH on Base for the network fee (usually under 1 cent). Some wallets, like Base Account, may cover it for you. Otherwise, send a tiny amount of ETH on the Base network to this wallet first.
+            </p>
+          )}
           {!amountValid && amount !== "" && <p className="error small">Choose an amount between ${MIN_BUY_USDC} and ${MAX_BUY_USDC}.</p>}
-          {notEnough && <p className="error small">You don't have enough USDC on Base for this amount.</p>}
+          {notEnough && !noUsdc && <p className="error small">You don't have enough USDC on Base for this amount.</p>}
 
           {!quote && (
             <button className="btn btn-primary btn-block" onClick={getQuote} disabled={!amountValid || step === "quoting" || !!notEnough}>

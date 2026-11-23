@@ -48,8 +48,14 @@ export function StockList({ stocks, selected, onSelect, prices }: {
                 <span className="muted small">{s.name}</span>
               </span>
               <span className="stock-price">
-                <strong>{s.navPrice !== undefined ? formatUsd(s.navPrice) : <span className="muted small">No price yet</span>}</strong>
-                <GapPill price={prices?.get(s.address.toLowerCase())} />
+                {(() => {
+                  const live = prices?.get(s.address.toLowerCase());
+                  if (live) return (<>
+                    <strong title="Trading price on Base now">{formatUsd(live.tradingPrice)}</strong>
+                    <GapPill price={live} />
+                  </>);
+                  return <strong>{s.navPrice !== undefined ? formatUsd(s.navPrice) : <span className="muted small">No price yet</span>}</strong>;
+                })()}
                 {s.pausedFeatures.length > 0 && <span className="pill pill-warn tiny">Paused</span>}
               </span>
             </button>

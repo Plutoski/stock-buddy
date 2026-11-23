@@ -32,12 +32,12 @@ export function StockDetail({ stock, market, liveData, onBack, livePrice, priceL
   const gapText = gapSentence(livePrice?.gapPct, !frozen);
   return (
     <div className="detail">
-      <button className="btn btn-link back" onClick={onBack}>← All stocks</button>
+      <button className="btn btn-link back" onClick={onBack}>Back to all stocks</button>
       <header className="detail-head">
         <StockIcon stock={stock} size={48} />
         <div>
-          <h2>{stock.name}</h2>
-          <p className="muted">{stock.symbol} · token on Base</p>
+          <h1>{stock.name}</h1>
+          <p className="muted">{stock.symbol}, a token on Base</p>
         </div>
       </header>
 
@@ -45,11 +45,11 @@ export function StockDetail({ stock, market, liveData, onBack, livePrice, priceL
         <div className="fact">
           <span className="muted small">Official price</span>
           <strong className="big">{stock.navPrice !== undefined ? formatUsd(stock.navPrice) : "Not published yet"}</strong>
-          <span className="muted small">{stock.navPrice !== undefined ? `per token · updated ${timeAgo(stock.navPriceUpdatedAt)}` : "Coinbase hasn't published one for this token"}</span>
+          <span className="muted small">{stock.navPrice !== undefined ? `per token, updated ${timeAgo(stock.navPriceUpdatedAt)}` : "Coinbase hasn't published one for this token"}</span>
         </div>
         {liveData && (
           <div className="fact">
-            <span className="muted small">Trading price on Base now</span>
+            <span className="muted small">Trading on Base</span>
             <strong className="big">{livePrice ? formatUsd(livePrice.tradingPrice) : priceLoading ? "Checking…" : "Unavailable"}</strong>
             <span className="muted small">{livePrice ? <GapPill price={livePrice} /> : priceLoading ? "Getting a live price" : "No trading route right now"}</span>
           </div>
@@ -67,7 +67,7 @@ export function StockDetail({ stock, market, liveData, onBack, livePrice, priceL
       </section>
 
       <section className="card">
-        <h3>In plain English</h3>
+        <h2>In plain English</h2>
         {explainStock(stock, market).map((l, i) => <p key={i}>{l}</p>)}
         {gapText && <p className={Math.abs(livePrice?.gapPct ?? 0) >= 2 ? "warn" : ""}>{gapText}</p>}
       </section>
@@ -94,10 +94,10 @@ export function StockDetail({ stock, market, liveData, onBack, livePrice, priceL
       </div>
 
       <section className="card share-card">
-        <h3>Share {stock.ticker}</h3>
+        <h2>Share {stock.ticker}</h2>
         <p className="muted small">Send a friend this stock with its live price gap. The preview shows the trading and official prices.</p>
         <ShareRow ticker={stock.ticker} compact
-          message={`${stock.name} as a token on Base: Stock Buddy shows the live price next to the official one before you buy. From $1:`} />
+          message={`${stock.name} as a token on Base: Stock Buddy shows the live price next to the official one before you buy. You can start with $1:`} />
       </section>
 
       <p className="muted tiny mono">Contract: {stock.address}</p>

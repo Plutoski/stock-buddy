@@ -1,5 +1,6 @@
 "use client";
 
+import { Logo } from "@/components/Logo.tsx";
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import type { ProofRecord } from "@/lib/proof.ts";
@@ -45,7 +46,7 @@ export default function ProofPage() {
       const res = await fetch("/api/proof", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ hash: hash.trim() }) });
       const body = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(body.error || "Couldn't check that transaction.");
-      setMsg({ ok: true, text: body.already ? "That trade is already on the list." : "Verified and added. Thank you!" });
+      setMsg({ ok: true, text: body.already ? "That trade is already on the list." : "Checked and added to the list." });
       setHash(""); refetch();
     } catch (err) {
       setMsg({ ok: false, text: (err as Error).message });
@@ -57,7 +58,7 @@ export default function ProofPage() {
   return (
     <>
       <header className="topbar">
-        <a className="brand" href="/"><span className="logo" aria-hidden>SB</span> Stock Buddy</a>
+        <a className="brand" href="/"><Logo size={30} /> <span>Stock Buddy</span></a>
         <a className="btn btn-ghost" href="/">Back to stocks</a>
       </header>
       <main className="layout proof">
@@ -65,13 +66,13 @@ export default function ProofPage() {
           <h1>Proof of real trades</h1>
           <p className="muted">
             Every trade below was checked directly on the Base blockchain. A trade counts only if the transaction succeeded,
-            went through KyberSwap, swapped USDC for a Coinbase tokenized stock (or back), and was made through Stock Buddy.
+            went through KyberSwap, swapped USDC for a Coinbase tokenized stock or the other way round, and was made through Stock Buddy.
             The builder&apos;s own wallets are left out of the numbers.
           </p>
 
           {isLoading && <p className="muted">Loading trades…</p>}
-          {isError && <p className="error">Couldn&apos;t load the list right now. <button className="btn btn-link" onClick={() => refetch()}>Try again</button></p>}
-          {data && !data.configured && <p className="card">The trade log is being set up. Check back soon.</p>}
+          {isError && <p className="error">Couldn&apos;t load the trade list. <button className="btn btn-link" onClick={() => refetch()}>Try again</button></p>}
+          {data && !data.configured && <p className="card">The trade list isn't switched on yet.</p>}
 
           {data && data.configured && (
             <>
@@ -89,9 +90,9 @@ export default function ProofPage() {
               )}
 
               <section className="card">
-                <h3>Trades</h3>
+                <h2>Trades</h2>
                 {data.records.length === 0 ? (
-                  <p className="muted">No trades yet.</p>
+                  <p className="muted">No trades yet. <a href="/">Make the first one from any stock page.</a></p>
                 ) : (
                   <div className="table-wrap">
                     <table className="proof-table">
@@ -104,7 +105,7 @@ export default function ProofPage() {
                             <td>{r.symbol}</td>
                             <td>{r.tokens.toLocaleString("en-US", { maximumFractionDigits: 6 })}</td>
                             <td>{r.side === "sell" ? (r.usdcReceived !== undefined ? money(r.usdcReceived) : "–") : (r.usdcPaid !== undefined ? money(r.usdcPaid) : "–")}</td>
-                            <td><a href={BASESCAN_TX + r.hash} target="_blank" rel="noreferrer">Basescan ↗</a></td>
+                            <td><a href={BASESCAN_TX + r.hash} target="_blank" rel="noreferrer">Basescan</a></td>
                           </tr>
                         ))}
                       </tbody>
@@ -116,7 +117,7 @@ export default function ProofPage() {
           )}
 
           <section className="card">
-            <h3>Traded through Stock Buddy but not listed?</h3>
+            <h2>Traded through Stock Buddy but not listed?</h2>
             <p className="muted small">Paste your transaction hash or Basescan link. We&apos;ll check it on the blockchain before adding it.</p>
             <form className="chat-input" onSubmit={addPurchase}>
               <input value={hashInput} onChange={(e) => setHash(e.target.value)} placeholder="0x… or a Basescan link" aria-label="Transaction hash or Basescan link" spellCheck={false} />

@@ -32,7 +32,7 @@ export async function GET() {
     return NextResponse.json({ configured: true, ...summary }, { headers: { "cache-control": "public, s-maxage=30" } });
   } catch (e) {
     console.error("[proof] list failed", e);
-    return NextResponse.json({ error: "Couldn't load the trade list right now." }, { status: 503 });
+    return NextResponse.json({ error: "Couldn't load the trade list." }, { status: 503 });
   }
 }
 

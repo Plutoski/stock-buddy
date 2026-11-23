@@ -10,7 +10,7 @@ const usd = (n: number) => "$" + n.toLocaleString("en-US", { minimumFractionDigi
 // GET /api/og?t=NVDA -> 1200x630 preview card used when a Stock Buddy link is shared (WhatsApp, X, Telegram…)
 export async function GET(req: NextRequest) {
   const t = (req.nextUrl.searchParams.get("t") || "").toUpperCase().slice(0, 12);
-  let name = "Real stocks on Base", ticker = "", trading: number | undefined, official: number | undefined;
+  let name = "Tokenized stocks on Base", ticker = "", trading: number | undefined, official: number | undefined;
   try {
     const { stocks, source } = await getStocks();
     const stock = source === "live" ? stocks.find((s) => s.ticker === t) : undefined;
@@ -35,9 +35,9 @@ export async function GET(req: NextRequest) {
         </div>
         <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
           <div style={{ display: "flex", fontSize: ticker ? 76 : 70, fontWeight: 800, lineHeight: 1.05 }}>
-            {ticker ? `${ticker} on Base` : "Real stocks on Base, explained simply"}
+            {ticker ? `${ticker} on Base` : "Buy tokenized stocks on Base from $1"}
           </div>
-          <div style={{ display: "flex", fontSize: 34, opacity: 0.85 }}>{ticker ? name : "Own a piece of NVIDIA, Apple and more from $1"}</div>
+          <div style={{ display: "flex", fontSize: 34, opacity: 0.85 }}>{ticker ? name : "See the price gap before you pay"}</div>
           {trading !== undefined && (
             <div style={{ display: "flex", gap: 28, fontSize: 36, marginTop: 10 }}>
               <div style={{ display: "flex" }}>Trading {usd(trading)}</div>
@@ -51,7 +51,7 @@ export async function GET(req: NextRequest) {
           )}
         </div>
         <div style={{ display: "flex", justifyContent: "space-between", fontSize: 28, opacity: 0.9 }}>
-          <div style={{ display: "flex" }}>See the price gap before you buy. Start with $1.</div>
+          <div style={{ display: "flex" }}>Stock Buddy compares the live and official prices</div>
           <div style={{ display: "flex" }}>Not financial advice</div>
         </div>
       </div>

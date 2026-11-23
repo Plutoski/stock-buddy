@@ -101,7 +101,7 @@ export function BuyPanel({ stock, liveData, presetUsdc }: { stock: Stock; liveDa
   }, [buyReceipt.isSuccess, txHash]);
   useEffect(() => {
     if (buyReceipt.data && buyReceipt.data.status === "reverted") {
-      setError("The purchase didn't go through, so your USDC wasn't spent. Prices may have moved. Get a new quote and try again.");
+      setError("The purchase didn't go through, so your USDC wasn't spent. The price may have moved. Get a new quote and try again.");
       setStep("idle"); setQuote(null);
     } else if (buyReceipt.isError) {
       // We couldn't read the result. The purchase may still have worked, so never claim it didn't.
@@ -110,7 +110,7 @@ export function BuyPanel({ stock, liveData, presetUsdc }: { stock: Stock; liveDa
   }, [buyReceipt.isError, buyReceipt.data]);
   useEffect(() => {
     if (approveReceipt.isError || (approveReceipt.data && approveReceipt.data.status === "reverted")) {
-      setError("The approval didn't go through. Nothing was spent. Please try again.");
+      setError("The approval didn't go through. Nothing was spent. Try again.");
       setApproveHash(undefined); setStep("quoted");
     }
   }, [approveReceipt.isError, approveReceipt.data]);
@@ -143,14 +143,14 @@ export function BuyPanel({ stock, liveData, presetUsdc }: { stock: Stock; liveDa
       const res = await fetch(`/api/quote?token=${stock.address}&usdc=${usdc}`, { signal: AbortSignal.timeout(20_000) });
       const body = await res.json().catch(() => ({}));
       if (seq !== quoteSeq.current) return; // the user changed stock or amount meanwhile
-      if (!res.ok) throw new Error(body.error || "The price service is busy. Please try again in a moment.");
+      if (!res.ok) throw new Error(body.error || "The price service didn't answer. Try again in a minute.");
       const ok = typeof body.amountIn === "string" && typeof body.amountOut === "string" && body.amountOutTokens > 0
         && typeof body.routerAddress === "string" && /^0x[0-9a-fA-F]{40}$/.test(body.routerAddress);
-      if (!ok) throw new Error("The price service sent an unexpected answer. Please try again.");
+      if (!ok) throw new Error("The price service sent a quote Stock Buddy couldn't check. Try again.");
       setQuote(body as Quote); setStep("quoted");
     } catch (e) {
       if (seq !== quoteSeq.current) return;
-      const msg = (e as Error).name === "TimeoutError" ? "Getting a price took too long. Please try again." : (e as Error).message;
+      const msg = (e as Error).name === "TimeoutError" ? "Getting a price took too long. Try again." : (e as Error).message;
       setError(msg); setStep("idle");
     }
   }
@@ -182,8 +182,8 @@ export function BuyPanel({ stock, liveData, presetUsdc }: { stock: Stock; liveDa
         body: JSON.stringify({ routeSummary: quote.routeSummary, sender: address }),
       });
       const tx = await res.json().catch(() => ({}));
-      if (!res.ok || !tx.to || !tx.data) throw new Error(tx.error || "Couldn't prepare the purchase. Please get a new quote.");
-      if (tx.to?.toLowerCase() !== quote.routerAddress.toLowerCase()) throw new Error("Safety check failed: the swap address changed. Please get a new quote.");
+      if (!res.ok || !tx.to || !tx.data) throw new Error(tx.error || "Couldn't prepare the purchase. Get a new quote.");
+      if (tx.to?.toLowerCase() !== quote.routerAddress.toLowerCase()) throw new Error("The swap address changed after the quote, so Stock Buddy stopped. Get a new quote.");
       setStep("buying");
       await ensureBase();
       const hash = await sendTransactionAsync({ to: tx.to, data: withAttribution(tx.data), value: BigInt(tx.value || 0), chainId: base.id });
@@ -203,7 +203,7 @@ export function BuyPanel({ stock, liveData, presetUsdc }: { stock: Stock; liveDa
 
       {!isConnected ? (
         <>
-          <p className="muted">To buy, you need a wallet with USDC on Base. No wallet yet? Choose Base Account: it creates one in seconds with a passkey. Stock Buddy never holds your money.</p>
+          <p className="muted">To buy, you need a wallet with USDC on Base. If you have no wallet yet, choose Base Account, which creates one with a passkey in seconds. Stock Buddy never holds your money.</p>
           <ConnectButton />
         </>
       ) : !onBase ? (
@@ -215,8 +215,8 @@ export function BuyPanel({ stock, liveData, presetUsdc }: { stock: Stock; liveDa
         </>
       ) : step === "done" && txHash ? (
         <div className="success">
-          <p><strong>Done!</strong> You bought about {quote?.amountOutTokens.toLocaleString("en-US", { maximumFractionDigits: 6 })} {stock.symbol}.</p>
-          <p className="small"><a href={BASESCAN_TX + txHash} target="_blank" rel="noreferrer">View your receipt on Basescan ↗</a></p>
+          <p><strong>Done.</strong> You bought about {quote?.amountOutTokens.toLocaleString("en-US", { maximumFractionDigits: 6 })} {stock.symbol}.</p>
+          <p className="small"><a href={BASESCAN_TX + txHash} target="_blank" rel="noreferrer">View the receipt on Basescan</a></p>
           {proofState === "saved" && <p className="small">Verified and added to the <a href="/proof">public list</a>.</p>}
           {proofState === "failed" && <p className="small muted">We couldn&apos;t add it to the <a href="/proof">public list</a> yet. You can paste your receipt link there later.</p>}
           <p className="small muted">Tell a friend. Your link shows {stock.ticker}&apos;s live price gap, and /proof counts friends who trade through it.</p>
@@ -228,7 +228,7 @@ export function BuyPanel({ stock, liveData, presetUsdc }: { stock: Stock; liveDa
       ) : (
         <>
           <label className="field">
-            <span>Amount in USDC (${MIN_BUY_USDC} to ${MAX_BUY_USDC})</span>
+            <span>Amount in USDC, ${MIN_BUY_USDC} to ${MAX_BUY_USDC}</span>
             <div className="amount">
               <span aria-hidden>$</span>
               <input inputMode="decimal" value={amount} onChange={(e) => {
@@ -248,9 +248,9 @@ export function BuyPanel({ stock, liveData, presetUsdc }: { stock: Stock; liveDa
             <div className="helper" role="note">
               <strong>No USDC yet? Here&apos;s how to get some.</strong>
               <ol>
-                <li>Buy USDC on Coinbase or another exchange you use (1 USDC ≈ $1).</li>
+                <li>Buy USDC on Coinbase or another exchange you use. 1 USDC is worth about $1.</li>
                 <li>Send it to your wallet address below and choose the <strong>Base</strong> network. Other networks won&apos;t arrive here.</li>
-                <li>Come back here. Your balance updates by itself.</li>
+                <li>Come back here. Your balance updates on its own.</li>
               </ol>
               <div className="addr-row">
                 <span className="addr">{address}</span>
@@ -260,7 +260,7 @@ export function BuyPanel({ stock, liveData, presetUsdc }: { stock: Stock; liveDa
           )}
           {noEth && !noUsdc && (
             <p className="helper small" role="note">
-              Your wallet has no ETH on Base for the network fee (usually under 1 cent). Some wallets, like Base Account, may cover it for you. Otherwise, send a tiny amount of ETH on the Base network to this wallet first.
+              Your wallet has no ETH on Base for the network fee, which is usually under 1 cent. Some wallets, like Base Account, may cover it for you. Otherwise, send a tiny amount of ETH on the Base network to this wallet first.
             </p>
           )}
           {!amountValid && amount !== "" && <p className="error small">Choose an amount between ${MIN_BUY_USDC} and ${MAX_BUY_USDC}.</p>}
@@ -276,15 +276,15 @@ export function BuyPanel({ stock, liveData, presetUsdc }: { stock: Stock; liveDa
             <div className="quote">
               <dl>
                 <dt>You pay</dt><dd>{formatUsd(quotedUsdc)} USDC</dd>
-                <dt>You get (about)</dt><dd>{quote.amountOutTokens.toLocaleString("en-US", { maximumFractionDigits: 6 })} {stock.symbol}</dd>
+                <dt>You get about</dt><dd>{quote.amountOutTokens.toLocaleString("en-US", { maximumFractionDigits: 6 })} {stock.symbol}</dd>
                 <dt>That's roughly</dt><dd>{(quote.amountOutTokens * stock.multiplier).toLocaleString("en-US", { maximumFractionDigits: 6 })} {stock.ticker} shares</dd>
                 <dt>Trading price now</dt><dd>{formatUsd(quote.pricePerToken)} per token</dd>
                 <dt>Official price</dt><dd>{formatUsd(stock.navPrice)} per token</dd>
-                {quote.gasUsd !== undefined && (<><dt>Network fee (est.)</dt><dd>{quote.gasUsd < 0.01 ? "under 1¢" : formatUsd(quote.gasUsd)}</dd></>)}
+                {quote.gasUsd !== undefined && (<><dt>Estimated network fee</dt><dd>{quote.gasUsd < 0.01 ? "under 1¢" : formatUsd(quote.gasUsd)}</dd></>)}
               </dl>
               {gap !== undefined && Math.abs(gap) >= 1 && (
                 <p className="warn small">
-                  The trading price is {Math.abs(gap).toFixed(1)}% {gap > 0 ? "higher" : "lower"} than the official reference. This often happens when the US market is closed. You'd be paying the trading price.
+                  The trading price is {Math.abs(gap).toFixed(1)}% {gap > 0 ? "above" : "below"} the official price, which is common while the US market is closed. You pay the trading price.
                 </p>
               )}
               <p className="muted small">Max price movement allowed: 0.5%. If the price moves more, the purchase cancels and you keep your USDC.</p>
@@ -310,7 +310,7 @@ export function BuyPanel({ stock, liveData, presetUsdc }: { stock: Stock; liveDa
 
       {error && <p className="error small" role="alert">{error}</p>}
       {txHash && step !== "done" && (
-        <p className="small"><a href={BASESCAN_TX + txHash} target="_blank" rel="noreferrer">View this transaction on Basescan ↗</a></p>
+        <p className="small"><a href={BASESCAN_TX + txHash} target="_blank" rel="noreferrer">View the transaction on Basescan</a></p>
       )}
       {!BUILDER_CODE && process.env.NODE_ENV !== "production" && <p className="muted tiny">Developer note: no Builder Code set, so purchases won't be attributed.</p>}
     </section>

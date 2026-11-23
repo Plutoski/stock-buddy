@@ -10,6 +10,9 @@ import { StockList } from "@/components/StockList.tsx";
 import { StockDetail } from "@/components/StockDetail.tsx";
 import { Chat } from "@/components/Chat.tsx";
 import { MyStocks } from "@/components/MyStocks.tsx";
+import { Logo } from "@/components/Logo.tsx";
+import { GapMeter } from "@/components/landing/GapMeter.tsx";
+import { HowItWorks, PriceWeek, WhatYouOwn, Safety, ProofStrip, Faq } from "@/components/landing/Explainers.tsx";
 import { OrderContext, type PreparedOrder } from "@/components/OrderContext.tsx";
 import type { LivePrice } from "@/lib/pricing.ts";
 import { rememberRef } from "@/lib/referral.ts";
@@ -104,42 +107,69 @@ export default function Home() {
     setOrder({ ...o, n: Date.now() }); // the stock page scrolls to the prepared order itself
   }
 
+  const top = data?.stocks.find((s) => s.ticker === "NVDA") ?? data?.stocks[0];
+
   return (
     <OrderContext.Provider value={{ stocks: data?.stocks ?? [], market, live, prepare }}>
       <EligibilityGate />
       <header className="topbar">
         <a className="brand" href="/" onClick={(e) => { e.preventDefault(); choose(null); }}>
-          <span className="logo" aria-hidden>SB</span> Stock Buddy
+          <Logo size={30} /> <span>Stock Buddy</span>
         </a>
+        <nav className="nav" aria-label="Sections">
+          <a href="/#how" onClick={() => setSelected(null)}>How it works</a>
+          <a href="/#why" onClick={() => setSelected(null)}>Price gaps</a>
+          <a href="/proof">Proof</a>
+        </nav>
         <ConnectButton />
       </header>
 
       {data?.source === "sample" && <div className="banner banner-warn">{data.note}</div>}
 
-      {market && (
-        <div className={`banner ${market.isOpen ? "banner-ok" : "banner-info"}`}>
-          <strong>{market.label}.</strong> {market.isOpen ? "Official prices are updating." : market.state === "closed-overnight" ? "Official prices may update less often. Trading on Base continues 24/7." : "Official prices are frozen. Trading on Base continues 24/7."}{" "}
-          <span className="muted">
-            {market.nextChangeLabel} {new Date(market.nextChangeAt).toLocaleString(undefined, { weekday: "short", hour: "numeric", minute: "2-digit" })} your time.
-          </span>
-        </div>
+      <main>
+      {!selected && (
+        <section className="hero" aria-label="Introduction">
+          <div className="wrap hero-grid">
+            <div className="hero-copy">
+              <h1>Buy tokenized stocks on Base from $1. See the price gap before you pay.</h1>
+              <p className="hero-lede">
+                Stock Buddy helps first-time buyers use Coinbase's tokenized stocks on Base. Tell it what you want to buy or sell.
+                It compares the live price with the official price and explains the difference in plain English. Then it prepares the trade, and you approve it in your own wallet.
+              </p>
+              <div className="row hero-cta">
+                <a className="btn btn-primary btn-lg" href="#stocks">Browse stocks</a>
+                <a className="btn btn-ghost btn-lg" href="#ask" onClick={() => setTimeout(() => (document.querySelector("#ask input") as HTMLInputElement | null)?.focus(), 300)}>Ask Stock Buddy</a>
+              </div>
+              <p className="muted small">Stock Buddy is free. Your money stays in your wallet until you approve a trade. This is not financial advice.</p>
+            </div>
+            {live && data ? (
+              <GapMeter stocks={data.stocks} prices={priceMap} market={market} onOpen={(s) => choose(s)} />
+            ) : isLoading ? (
+              <GapMeter stocks={[]} prices={priceMap} market={market} onOpen={() => {}} />
+            ) : null}
+          </div>
+        </section>
       )}
 
-      <main className={`layout ${selected ? "has-selection" : ""}`}>
+      <div id="stocks" className={`layout ${selected ? "has-selection" : "is-home"}`}>
         <aside className="sidebar">
           {!selected && (
-            <section className="hero">
-              <h1>Real stocks on Base, explained simply.</h1>
-              <p className="muted">
-                Pick a company to see what one token really stands for, why its price can drift when markets close, and what a purchase would cost. No jargon, no advice.
-              </p>
-            </section>
+            <div className="section-head">
+              <h2>Stocks you can buy</h2>
+              {market && (
+                <p className="status-line small">
+                  <span className={`dot ${market.isOpen ? "dot-green" : "dot-amber"}`} aria-hidden />
+                  {market.label}. {market.isOpen ? "Official prices are updating." : "Official prices are frozen. Trading on Base continues."}{" "}
+                  <span className="muted">{market.nextChangeLabel} {new Date(market.nextChangeAt).toLocaleString(undefined, { weekday: "short", hour: "numeric", minute: "2-digit" })} your time.</span>
+                </p>
+              )}
+            </div>
           )}
           {isLoading && <p className="muted">Loading stocks…</p>}
           {isError && (
-            <p className="error">Couldn't load stocks. <button className="btn btn-link" onClick={() => refetch()}>Try again</button></p>
+            <p className="error">Couldn't load the stock list. <button className="btn btn-link" onClick={() => refetch()}>Try again</button></p>
           )}
-          {data && live && <MyStocks stocks={data.stocks} prices={priceMap} onOpen={(s) => choose(s, "sell")} />}
+          {data && live && selected && <MyStocks stocks={data.stocks} prices={priceMap} onOpen={(s) => choose(s, "sell")} />}
           {data && <StockList stocks={data.stocks} selected={selected?.address} onSelect={(s) => choose(s)} prices={priceMap} />}
         </aside>
 
@@ -149,17 +179,42 @@ export default function Home() {
               order={order && order.stock.address === selected.address ? order : undefined} stock={selected} market={market} liveData={live} onBack={() => choose(null)}
               livePrice={priceMap.get(selected.address.toLowerCase())} priceLoading={live && (topLoading || selLoading)} />
           ) : (
-            <div className="welcome">
-              {market && <p className="card">{market.explanation}</p>}
+            <div className="welcome" id="ask">
+              {data && live && <MyStocks stocks={data.stocks} prices={priceMap} onOpen={(s) => choose(s, "sell")} />}
               <Chat />
             </div>
           )}
         </section>
+      </div>
+
+      {!selected && (
+        <>
+          <HowItWorks />
+          <PriceWeek market={market} />
+          <WhatYouOwn stock={top} />
+          <Safety />
+          <ProofStrip />
+          <Faq />
+        </>
+      )}
       </main>
 
-      <footer className="footer muted small">
-        Stock Buddy is an educational tool, not a broker or financial adviser. Coinbase tokenized stocks are available only to eligible people outside the United States.
-        Prices can go down as well as up. Built for Base Stocks Maxxing. <a href="/proof">See verified trades</a>.
+      <footer className="footer">
+        <div className="wrap footer-grid">
+          <div>
+            <a className="brand" href="/"><Logo size={26} /> <span>Stock Buddy</span></a>
+            <p className="muted small">Built for Base Stocks Maxxing by AJ. The code is public on <a href="https://github.com/Plutoski/stock-buddy" target="_blank" rel="noreferrer">GitHub</a>.</p>
+          </div>
+          <p className="muted small">
+            Stock Buddy is an educational tool. It is not a broker or a financial adviser. Coinbase tokenized stocks are only for eligible people outside the United States.
+            Prices can go down as well as up. Prices come from Coinbase and KyberSwap; trades settle on Base.
+          </p>
+          <nav className="footer-links" aria-label="Footer">
+            <a href="/proof">Verified trades</a>
+            <a href="/#faq">Questions</a>
+            <a href="https://docs.base.org" target="_blank" rel="noreferrer">About Base</a>
+          </nav>
+        </div>
       </footer>
     </OrderContext.Provider>
   );

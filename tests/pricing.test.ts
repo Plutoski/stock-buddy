@@ -30,13 +30,13 @@ test("missing or broken prices give no gap instead of NaN", () => {
 
 test("gap sentence explains direction and the closed-market reason", () => {
   const above = gapSentence(3.02, false)!;
-  assert.match(above, /3\.0% higher/);
+  assert.match(above, /3\.0% above/);
   assert.match(above, /frozen/);
-  assert.match(above, /pay more/);
+  assert.match(above, /3\.0% more than the official value/);
   const below = gapSentence(-2.5, true)!;
-  assert.match(below, /2\.5% lower/);
-  assert.match(below, /updating/);
-  assert.match(gapSentence(0.1, true)!, /in line/);
+  assert.match(below, /2\.5% below/);
+  assert.match(below, /updates/);
+  assert.match(gapSentence(0.1, true)!, /matches the official price/);
 });
 
 test("live price comes from a $10 KyberSwap quote and is cached", async () => {

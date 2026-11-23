@@ -65,7 +65,7 @@ export function Chat({ stock }: { stock?: Stock }) {
         body: JSON.stringify({ messages: next.filter((m) => !m.intent), stockAddress: stock?.address }),
       });
       const body = await res.json();
-      setMessages([...next, { role: "assistant", content: body.reply || body.error || "Sorry, something went wrong." }]);
+      setMessages([...next, { role: "assistant", content: body.reply || body.error || "Stock Buddy couldn't answer that. Try again, or ask another way." }]);
       if (body.mode) setMode(body.mode);
     } catch {
       setMessages([...next, { role: "assistant", content: "I couldn't connect. Check your internet and try again." }]);
@@ -81,7 +81,7 @@ export function Chat({ stock }: { stock?: Stock }) {
         {mode && <span className="pill small">{mode === "agent" ? "Agent" : mode === "ai" ? "AI answers" : mode === "guard" ? "No advice" : "Built-in answers"}</span>}
       </div>
       <div className="chat-log" aria-live="polite" ref={logRef}>
-        {messages.length === 0 && <p className="muted small">Ask anything about how {stock ? `${stock.symbol} works` : "tokenized stocks work"}, or tell me what to do, like &ldquo;buy $5 of {stock ? stock.ticker : "NVIDIA"}&rdquo; or &ldquo;sell half my {stock ? stock.ticker : "Google"}&rdquo;. I explain and prepare trades. I don&apos;t give advice.</p>}
+        {messages.length === 0 && <p className="muted small">Ask anything about how {stock ? `${stock.symbol} works` : "tokenized stocks work"}, or tell me what to do, like &quot;buy $5 of {stock ? stock.ticker : "NVIDIA"}&quot; or &quot;sell half my {stock ? stock.ticker : "Google"}&quot;. I explain and prepare trades. I don&apos;t give advice.</p>}
         {messages.map((m, i) => m.intent
           ? <TradeCard key={i} intent={m.intent} />
           : <div key={i} className={`bubble ${m.role}`} dir="auto">{m.content}</div>)}
@@ -96,7 +96,7 @@ export function Chat({ stock }: { stock?: Stock }) {
         <input
           value={input}
           onChange={(e) => setInput(e.target.value)}
-          placeholder="Ask, or say “buy $5 of NVIDIA”…"
+          placeholder='Ask, or say "buy $5 of NVIDIA"…'
           aria-label="Your question"
           maxLength={1000}
           enterKeyHint="send"

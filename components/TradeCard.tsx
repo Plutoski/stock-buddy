@@ -36,13 +36,13 @@ export function TradeCard({ intent }: { intent: TradeIntent }) {
   }, [intent, buyOk, live]);
 
   if (intent.side === "unknown-stock") {
-    return <div className="bubble assistant">I couldn&apos;t find a tokenized stock called &ldquo;{intent.query}&rdquo;. Try its ticker, like NVDA or GOOGL, or search the list.</div>;
+    return <div className="bubble assistant">I couldn&apos;t find a tokenized stock called &quot;{intent.query}&quot;. Try its ticker, like NVDA or GOOGL, or search the list.</div>;
   }
   if (intent.side === "missing-amount") {
     return (
       <div className="bubble assistant">
         How much would you like to {intent.action} of {intent.stock.name}?{" "}
-        {intent.action === "buy" ? `For example: "buy $5 of ${intent.stock.ticker}" (from $${MIN_BUY_USDC} to $${MAX_BUY_USDC}).` : `For example: "sell half my ${intent.stock.ticker}" or "sell all my ${intent.stock.ticker}".`}
+        {intent.action === "buy" ? `For example: "buy $5 of ${intent.stock.ticker}". Purchases are $${MIN_BUY_USDC} to $${MAX_BUY_USDC}.` : `For example: "sell half my ${intent.stock.ticker}" or "sell all my ${intent.stock.ticker}".`}
       </div>
     );
   }
@@ -69,8 +69,8 @@ export function TradeCard({ intent }: { intent: TradeIntent }) {
           </dl>
         )}
         {quote && gapSentence(gap, !frozen) && <p className="small">{gapSentence(gap, !frozen)}</p>}
-        {market && !market.isOpen && <p className="muted small">{market.label}. {frozen ? "The official price is frozen until it updates again." : ""}</p>}
-        <p className="muted small">This isn&apos;t advice. You&apos;ll review the final quote and approve it in your own wallet.</p>
+        {market && !market.isOpen && <p className="muted small">{market.label}. {frozen ? "The official price is frozen until the US market opens." : ""}</p>}
+        <p className="muted small">This isn&apos;t advice. You review the final quote and approve it in your own wallet.</p>
         <button className="btn btn-primary" onClick={() => prepare({ side: "buy", stock: s, usdc: intent.usdc })} disabled={!quote}>
           Review and buy
         </button>

@@ -93,7 +93,7 @@ export function getMarketStatus(at: Date = new Date()): MarketStatus {
       isOpen: true,
       label: "US market open",
       explanation:
-        "The US stock market is open, so the official reference price is updating and should be close to the trading price.",
+        "The US stock market is open, so the official price is updating and should be close to the trading price.",
       nextChangeAt: closeAt.toISOString(),
       nextChangeLabel: "Closes",
     };
@@ -115,8 +115,8 @@ export function getMarketStatus(at: Date = new Date()): MarketStatus {
     label: "US market closed",
     explanation:
       state === "closed-overnight"
-        ? `The US market is closed because ${why}. You can still trade the token on Base. The official reference price may update less often until the market reopens, so the trading price can drift away from it.`
-        : `The US market is closed because ${why}. You can still trade the token on Base, but the official reference price is frozen at its last value, so the trading price can drift away from it.`,
+        ? `The US market is closed because ${why}. You can still trade the token on Base. The official price may update less often until the market opens, so the trading price can move away from it.`
+        : `The US market is closed because ${why}. You can still trade the token on Base, but the official price is frozen at its last value, so the trading price can move away from it.`,
     nextChangeAt: reopen.toISOString(),
     nextChangeLabel: "Opens",
   };

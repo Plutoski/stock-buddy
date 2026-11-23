@@ -7,7 +7,7 @@ export default function Error({ reset }: { error: Error; reset: () => void }) {
     <main className="layout">
       <section className="card" role="alert">
         <h2>Something went wrong</h2>
-        <p className="muted">Stock Buddy hit an unexpected problem loading this page. Your wallet and funds are not affected.</p>
+        <p className="muted">This page didn't load. Your wallet and your money are not affected.</p>
         <button className="btn btn-primary" onClick={() => reset()}>Try again</button>
       </section>
     </main>

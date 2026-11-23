@@ -9,7 +9,7 @@ const clean = (t: string) => decodeURIComponent(t).toUpperCase().replace(/[^A-Z0
 
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const t = clean((await params).ticker);
-  const title = `${t} on Base · Stock Buddy`;
+  const title = `${t} on Base: Stock Buddy`;
   const description = `See ${t}'s trading price next to its official price before you buy. Start with $1, in your own wallet.`;
   const image = { url: `/api/og?t=${encodeURIComponent(t)}`, width: 1200, height: 630, alt: `${t} price on Stock Buddy` };
   return {

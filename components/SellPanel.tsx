@@ -85,14 +85,14 @@ export function SellPanel({ stock, liveData, presetFraction, presetTokens }: { s
   useEffect(() => { if (approveReceipt.isSuccess) { refetchAllowance(); setStep("quoted"); } }, [approveReceipt.isSuccess, refetchAllowance]);
   useEffect(() => {
     if (approveReceipt.isError || (approveReceipt.data && approveReceipt.data.status === "reverted")) {
-      setError("The approval didn't go through. Nothing was sold. Please try again.");
+      setError("The approval didn't go through. Nothing was sold. Try again.");
       setApproveHash(undefined); setStep("quoted");
     }
   }, [approveReceipt.isError, approveReceipt.data]);
   useEffect(() => { if (sellReceipt.isSuccess) { setStep("done"); refetchBalance(); } }, [sellReceipt.isSuccess, refetchBalance]);
   useEffect(() => {
     if (sellReceipt.data && sellReceipt.data.status === "reverted") {
-      setError("The sale didn't go through, so you still have your tokens. Prices may have moved. Get a new quote and try again.");
+      setError("The sale didn't go through, so you still have your tokens. The price may have moved. Get a new quote and try again.");
       setStep("idle"); setQuote(null);
     } else if (sellReceipt.isError) {
       setError("We couldn't confirm the result yet. Check your receipt on Basescan before trying again.");
@@ -145,14 +145,14 @@ export function SellPanel({ stock, liveData, presetFraction, presetTokens }: { s
       const res = await fetch(`/api/sell-quote?token=${stock.address}&units=${units.toString()}`, { signal: AbortSignal.timeout(20_000) });
       const body = await res.json().catch(() => ({}));
       if (seq !== quoteSeq.current) return;
-      if (!res.ok) throw new Error(body.error || "The price service is busy. Please try again in a moment.");
+      if (!res.ok) throw new Error(body.error || "The price service didn't answer. Try again in a minute.");
       const ok = typeof body.amountIn === "string" && body.amountIn === units.toString() && body.usdcOut > 0
         && typeof body.routerAddress === "string" && /^0x[0-9a-fA-F]{40}$/.test(body.routerAddress);
-      if (!ok) throw new Error("The price service sent an unexpected answer. Please try again.");
+      if (!ok) throw new Error("The price service sent a quote Stock Buddy couldn't check. Try again.");
       setQuote(body as SellQuote); setStep("quoted");
     } catch (e) {
       if (seq !== quoteSeq.current) return;
-      setError((e as Error).name === "TimeoutError" ? "Getting a price took too long. Please try again." : (e as Error).message);
+      setError((e as Error).name === "TimeoutError" ? "Getting a price took too long. Try again." : (e as Error).message);
       setStep("idle");
     }
   }
@@ -176,8 +176,8 @@ export function SellPanel({ stock, liveData, presetFraction, presetTokens }: { s
     try {
       const res = await fetch("/api/build", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ routeSummary: quote.routeSummary, sender: address }) });
       const tx = await res.json().catch(() => ({}));
-      if (!res.ok || !tx.to || !tx.data) throw new Error(tx.error || "Couldn't prepare the sale. Please get a new quote.");
-      if (tx.to.toLowerCase() !== quote.routerAddress.toLowerCase()) throw new Error("Safety check failed: the swap address changed. Please get a new quote.");
+      if (!res.ok || !tx.to || !tx.data) throw new Error(tx.error || "Couldn't prepare the sale. Get a new quote.");
+      if (tx.to.toLowerCase() !== quote.routerAddress.toLowerCase()) throw new Error("The swap address changed after the quote, so Stock Buddy stopped. Get a new quote.");
       setStep("selling");
       await ensureBase();
       setTxHash(await sendTransactionAsync({ to: tx.to, data: withAttribution(tx.data), value: BigInt(tx.value || 0), chainId: base.id }));
@@ -198,8 +198,8 @@ export function SellPanel({ stock, liveData, presetFraction, presetTokens }: { s
         </>
       ) : step === "done" && txHash ? (
         <div className="success">
-          <p><strong>Sold!</strong> You received about {formatUsd(quote?.usdcOut)} USDC.</p>
-          <p className="small"><a href={BASESCAN_TX + txHash} target="_blank" rel="noreferrer">View your receipt on Basescan ↗</a></p>
+          <p><strong>Sold.</strong> You received about {formatUsd(quote?.usdcOut)} USDC.</p>
+          <p className="small"><a href={BASESCAN_TX + txHash} target="_blank" rel="noreferrer">View the receipt on Basescan</a></p>
           {proofState === "saved" && <p className="small">Verified and added to the <a href="/proof">public list</a>.</p>}
           {proofState === "failed" && <p className="small muted">We couldn&apos;t add it to the <a href="/proof">public list</a> yet. You can paste your receipt link there later.</p>}
           <button className="btn btn-ghost" onClick={() => { setStep("idle"); setQuote(null); setTxHash(undefined); setApproveHash(undefined); setAgree(false); setAmount(""); }}>Done</button>
@@ -236,10 +236,10 @@ export function SellPanel({ stock, liveData, presetFraction, presetTokens }: { s
             <div className="quote">
               <dl>
                 <dt>You sell</dt><dd>{fmtTokens(quote.tokensIn)} {stock.symbol}</dd>
-                <dt>You get (about)</dt><dd>{formatUsd(quote.usdcOut)} USDC</dd>
+                <dt>You get about</dt><dd>{formatUsd(quote.usdcOut)} USDC</dd>
                 <dt>Price per token</dt><dd>{formatUsd(quote.pricePerToken)}</dd>
                 <dt>Official price</dt><dd>{formatUsd(stock.navPrice)} per token</dd>
-                {quote.gasUsd !== undefined && (<><dt>Network fee (est.)</dt><dd>{quote.gasUsd < 0.01 ? "under 1¢" : formatUsd(quote.gasUsd)}</dd></>)}
+                {quote.gasUsd !== undefined && (<><dt>Estimated network fee</dt><dd>{quote.gasUsd < 0.01 ? "under 1¢" : formatUsd(quote.gasUsd)}</dd></>)}
               </dl>
               {gapText && <p className="warn small">{gapText}</p>}
               <p className="muted small">Max price movement allowed: 0.5%. If the price moves more, the sale cancels and you keep your tokens.</p>
@@ -262,7 +262,7 @@ export function SellPanel({ stock, liveData, presetFraction, presetTokens }: { s
         </>
       )}
       {error && <p className="error small" role="alert">{error}</p>}
-      {txHash && step !== "done" && <p className="small"><a href={BASESCAN_TX + txHash} target="_blank" rel="noreferrer">View this transaction on Basescan ↗</a></p>}
+      {txHash && step !== "done" && <p className="small"><a href={BASESCAN_TX + txHash} target="_blank" rel="noreferrer">View the transaction on Basescan</a></p>}
     </section>
   );
 }

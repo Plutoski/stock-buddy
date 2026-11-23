@@ -39,17 +39,17 @@ export function gapSentence(gap: number | undefined, marketOpen: boolean): strin
   if (gap === undefined) return undefined;
   const lvl = gapLevel(gap);
   if (lvl === "inline") {
-    return "Right now the trading price on Base is in line with the official price.";
+    return "The trading price on Base matches the official price right now.";
   }
-  const dir = gap > 0 ? "higher" : "lower";
+  const dir = gap > 0 ? "above" : "below";
   const pct = Math.abs(gap).toFixed(1);
   const why = marketOpen
-    ? "Small gaps can happen even while the official price is updating, because trading on Base has its own buyers and sellers."
-    : "This usually happens while the official price is frozen, for example at weekends, but people keep trading on Base.";
+    ? "Small gaps happen even while the official price updates, because Base has its own buyers and sellers."
+    : "This is common while the official price is frozen, for example at weekends, because people keep trading on Base.";
   const meaning = gap > 0
-    ? "If you buy now, you pay more than the official price."
-    : "If you buy now, you pay less than the official price, but that gap can close either way when the market reopens.";
-  return `Right now people on Base are paying ${pct}% ${dir} than the official price. ${why} ${meaning}`;
+    ? `Buying now costs about ${pct}% more than the official value.`
+    : `Buying now costs about ${pct}% less than the official value. The gap can close in either direction when the US market opens.`;
+  return `On Base this token trades ${pct}% ${dir} its official price right now. ${why} ${meaning}`;
 }
 
 /** What a seller should know about the price gap, in plain words. Never advice. */
@@ -57,6 +57,6 @@ export function sellGapSentence(gap: number | undefined): string | undefined {
   if (gap === undefined || Math.abs(gap) < 1) return undefined;
   const pct = Math.abs(gap).toFixed(1);
   return gap > 0
-    ? `This sale would get ${pct}% more per token than the official reference price. That often happens when the official price is frozen, for example at weekends.`
-    : `This sale would get ${pct}% less per token than the official reference price. That often happens when the official price is frozen, for example at weekends.`;
+    ? `This sale would get ${pct}% more per token than the official price. That often happens when the official price is frozen, for example at weekends.`
+    : `This sale would get ${pct}% less per token than the official price. That often happens when the official price is frozen, for example at weekends.`;
 }

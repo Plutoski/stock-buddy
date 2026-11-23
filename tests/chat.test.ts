@@ -27,10 +27,10 @@ test("no USDC gets help getting USDC, not buy steps", () => {
   assert.match(builtInAnswer("I don't have USDC"), /Base network/);
 });
 test("why is the price higher explains the gap", () => {
-  assert.match(builtInAnswer("Why is it 3% higher than the official price?"), /premium/);
+  assert.match(builtInAnswer("Why is it 3% higher than the official price?"), /trades above it/);
 });
 test("selling and holdings questions are answered", () => {
-  assert.match(builtInAnswer("Can I sell it later?"), /swapping back to USDC/);
+  assert.match(builtInAnswer("Can I sell it later?"), /USDC back/);
   assert.match(builtInAnswer("how do I see my stocks?"), /wallet/);
 });
 test("official price counts as frozen only when it hasn't updated for 30+ minutes", () => {

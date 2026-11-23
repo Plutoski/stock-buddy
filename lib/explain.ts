@@ -29,9 +29,9 @@ export function isAdviceQuestion(q: string): boolean {
 }
 
 export const ADVICE_REPLY =
-  "I can't tell you whether to buy, sell or hold anything, or predict prices. That's financial advice, and I'm an explainer, not an adviser. " +
-  "What I can do is explain how a stock token works, what you'd actually own, what a purchase would cost, and the risks, so you can decide for yourself. " +
-  "If you're unsure, speak to a licensed financial adviser where you live.";
+  "I can't tell you whether to buy, sell or hold, and I don't predict prices. That would be financial advice. " +
+  "I can explain how a stock token works, what you'd own, what a purchase costs right now, and the risks. The decision is yours. " +
+  "For personal advice, talk to a licensed financial adviser where you live.";
 
 export function formatUsd(n: number | undefined): string {
   if (n === undefined || !Number.isFinite(n)) return "unavailable";
@@ -45,20 +45,20 @@ export function sharesPerToken(stock: Stock): string {
 /** Plain-language summary card text for one stock. */
 export function explainStock(stock: Stock, market: MarketStatus): string[] {
   const lines = [
-    `${stock.symbol} is a token on Base that stands for shares of ${stock.name}. Each token is backed by real ${stock.ticker} shares held by a regulated custodian.`,
-    `Right now 1 ${stock.symbol} = ${sharesPerToken(stock)} ${stock.ticker} share${stock.multiplier === 1 ? "" : "s"}. That number can grow over time when dividends are paid, so one token doesn't always equal exactly one share.`,
+    `${stock.symbol} is a token on Base that tracks shares of ${stock.name}. Coinbase issues it, and real ${stock.ticker} shares held by a regulated custodian back each token.`,
+    `Right now 1 ${stock.symbol} equals ${sharesPerToken(stock)} ${stock.ticker} share${stock.multiplier === 1 ? "" : "s"}. This number grows a little each time the company pays a dividend, so one token is not always exactly one share.`,
   ];
   if (stock.navPrice === undefined) {
-    lines.push("Coinbase hasn't published an official reference value for this token yet, so compare the trading price carefully before buying.");
+    lines.push("Coinbase hasn't published an official price for this token yet, so there is nothing to compare the trading price with.");
   } else {
     lines.push(
       !isOfficialPriceFrozen(stock.navPriceUpdatedAt)
-        ? `The official reference value is ${formatUsd(stock.navPrice)} per token, and it's updating right now.`
-        : `The official reference value is ${formatUsd(stock.navPrice)} per token, but it's frozen at its last value${market.isOpen ? "" : " until the US market reopens"}. The trading price on Base can move away from it in the meantime.`,
+        ? `The official price is ${formatUsd(stock.navPrice)} per token, and it is updating right now.`
+        : `The official price is ${formatUsd(stock.navPrice)} per token. It is frozen at its last value${market.isOpen ? "" : " until the US market opens"}, and the trading price on Base can move away from it until then.`,
     );
   }
   if (stock.pausedFeatures.length > 0) {
-    lines.push("Heads up: some actions for this token are paused right now, for example during a stock split or dividend. Transfers or trades may fail until it's resumed.");
+    lines.push("Some actions for this token are paused right now, which happens during a stock split or dividend. Trades may fail until Coinbase resumes them.");
   }
   return lines;
 }
@@ -69,78 +69,78 @@ const TOPICS: Topic[] = [
   {
     keys: /\b(what is|what's|explain|mean).{0,20}(tokeni[sz]ed|token|b20)\b|\btokeni[sz]ed stock/i,
     answer: () =>
-      "A tokenized stock is a digital token that stands for a real share of a company. Coinbase buys and holds the real shares with a regulated custodian, then issues a matching token on the Base blockchain. Holding the token gives you a claim on the share, and you keep it in your own wallet. Unlike a normal brokerage account, you can trade it 24/7 and use it in other apps on Base.",
+      "A tokenized stock is a token on the Base blockchain that tracks a real company share. Coinbase holds the real shares with a regulated custodian and issues one token for each. You keep the token in your own wallet. Unlike shares in a brokerage account, you can trade it at any hour, any day.",
   },
   {
     keys: /\bmultipliers?\b|shares? per token|\bone token\b|\b1 \w*token\b|\bmean\b|\b1 [A-Z]+c\b/i,
     answer: (s) =>
-      `The multiplier tells you how many real shares one token stands for.${s ? ` For ${s.symbol} it's ${sharesPerToken(s)} right now.` : ""} It starts at 1 and goes up slightly whenever the company pays a cash dividend, because the dividend is reinvested into more shares per token instead of being paid out in cash. Your number of tokens stays the same, but each token is worth a little more of the company.`,
+      `The multiplier is the number of real shares one token tracks.${s ? ` For ${s.symbol} it is ${sharesPerToken(s)} right now.` : ""} It starts at 1. Each time the company pays a cash dividend, the dividend buys more shares per token, so the multiplier goes up a little. You keep the same number of tokens, and each one is worth slightly more of the company.`,
   },
   {
     keys: /\bdividend/i,
     answer: () =>
-      "You don't receive dividends as cash. When the company pays a dividend, the token's multiplier goes up, so each token you hold stands for slightly more of a share. Your token count doesn't change, but what each token is worth does.",
+      "Dividends don't arrive as cash. When the company pays one, the token's multiplier goes up, so each token tracks slightly more of a share. Your number of tokens stays the same.",
   },
   {
     keys: /\bsplits?\b/i,
     answer: () =>
-      "When a company splits its stock (for example 1 share becomes 10), the multiplier is updated to match. Some actions may be paused briefly while it's processed. Your share of the company stays the same, it's just divided differently.",
+      "When a company splits its stock, say 1 share into 10, Coinbase updates the multiplier to match. Trading can pause briefly while that happens. Your part of the company stays the same.",
   },
   {
     keys: /\b(closed|weekend|night|after hours|market hours|open|frozen|drift|peg)\b/i,
     answer: (_s, m) =>
-      `${m ? m.explanation + " " : ""}The token trades 24/7 on Base, but the real US market only trades Monday to Friday, 9:30 AM to 4:00 PM New York time. When the market is closed, the official reference price stops updating, so the price you trade at on Base can be higher or lower than it. Gaps are often bigger over weekends and holidays.`,
+      `${m ? m.explanation + " " : ""}The token trades on Base at any hour. The US market trades Monday to Friday, 9:30 AM to 4:00 PM New York time. While it is closed, the official price stops moving, so the price on Base can be higher or lower than it. Gaps are usually bigger at weekends and on holidays.`,
   },
   {
     keys: /\b(fees?|costs?|gas|slippage|price impact|how much|charges?)\b/i,
     answer: () =>
-      "A purchase has three costs. First, a small network fee (gas), usually a few cents on Base. Second, the swap price, which can differ from the official reference value, especially when the US market is closed. Third, slippage, a small price movement while your trade goes through. Stock Buddy caps slippage at 0.5% and shows you the exact amount you'll receive before you confirm.",
+      "Stock Buddy charges nothing. You pay the network fee on Base, usually under one cent, and the trading price, which can be above or below the official price while the US market is closed. The price can also move a little while your trade goes through. Stock Buddy stops the trade if it moves more than 0.5%, and shows the amount you'll receive before you confirm.",
   },
   {
     keys: /\b(risks?|risky|safe|safety|lose|losing|scams?)\b/i,
     answer: () =>
-      "The main risks are: the stock price can fall, and you can lose money. The trading price on Base can drift from the real share price when markets are closed. There's smart contract and wallet risk, so if you lose access to your wallet, nobody can recover it for you. Some actions can be paused, and these tokens are only for eligible people outside the US. Only use money you can afford to lose.",
+      "The stock price can fall, and you can lose money. While the US market is closed, the price on Base can move away from the real share price. If you lose access to your wallet, nobody can recover it for you. Coinbase can pause some actions, for example during a stock split. These tokens are only for eligible people outside the US. Use only money you can afford to lose.",
   },
   {
     keys: /\b(own|owns|ownership|voting|vote|rights|redeem|redemption|real shares?)\b/i,
     answer: () =>
-      "Each token is backed 1:1 by real shares held in segregated, regulated custody, separate from Coinbase. Holding the token gives you a claim on that share. Turning tokens back into actual shares (redemption) is limited to approved participants who pass identity checks, so most people buy and sell the token itself on Base.",
+      "Real shares held by a regulated custodian, separate from Coinbase, back each token one for one. Only approved participants who pass identity checks can swap tokens for the actual shares, so most people buy and sell the token itself on Base.",
   },
   {
     keys: /\b(no usdc|don'?t have (any )?usdc|get usdc|buy usdc|where.{0,15}usdc|fund (my )?wallet|top ?up)\b/i,
     answer: () =>
-      "To buy, you need USDC (a digital dollar, 1 USDC ≈ $1) on the Base network, plus a tiny bit of ETH on Base for the network fee if your wallet asks for it. " +
-      "If you have a Coinbase account, buy USDC there and send it to your wallet address, choosing the Base network. From another exchange, withdraw USDC and pick Base as the network. " +
-      "Always double-check the network is Base, or the funds may not arrive.",
+      "You pay with USDC, a digital dollar worth about $1, on the Base network. Most wallets also need a few cents of ETH on Base for the network fee. " +
+      "Buy USDC on an exchange you already use, such as Coinbase, then withdraw it to your wallet address and choose Base as the network. " +
+      "Check that the network says Base before you send, or the money may not arrive.",
   },
   {
     keys: /\b(usdc|stablecoin|wallet|base account)\b/i,
     answer: () =>
-      "USDC is a digital dollar (1 USDC ≈ $1) and it's what you pay with. You need a wallet on the Base network with some USDC in it. Base Account (from Coinbase) works on both phone and laptop. You can also use MetaMask or the Coinbase Wallet browser extension.",
+      "USDC is a digital dollar worth about $1, and it is what you pay with. You need a wallet on Base with some USDC in it. Base Account works on phone and laptop and takes seconds to create with a passkey. MetaMask and other browser wallets work too.",
   },
   {
     keys: /\b(why|how come)\b.{0,40}\b(higher|lower|more|less|different|gap|premium|discount)\b|\b(gap|premium|discount)\b/i,
     answer: (_s, m) =>
-      "The official price comes from the real US stock market. When that market is closed, especially at weekends and on holidays, the official price stops moving, but people keep trading the token on Base. " +
-      "If buyers on Base are paying more than the frozen price, you see a premium; if less, a discount. The gap often shrinks when the US market reopens, but it can close in either direction. " +
+      "The official price follows the real US stock market. When that market is closed, at night, at weekends and on holidays, the official price stops moving, but people keep trading the token on Base. " +
+      "If buyers on Base pay more than the frozen price, the token trades above it. If they pay less, it trades below. The gap often shrinks when the US market opens, and it can close in either direction. " +
       (m && !m.isOpen ? "The US market is closed right now." : ""),
   },
   {
     keys: /\b(sell|cash out|get my money|withdraw)\b/i,
     answer: () =>
-      "The tokens are yours, in your own wallet, so you can sell them any time on Base by swapping back to USDC (for example with a DEX app or your wallet's swap feature). " +
-      "Stock Buddy only helps with buying today. When you sell, check the trading price against the official price first, just like when you buy.",
+      "You can sell at any time. Say \"sell half my NVDA\" here, or open the stock and choose Sell. You can sell 25%, 50%, all, or an exact amount, and you get USDC back in the same wallet. " +
+      "Stock Buddy shows how the sale price compares with the official price before you confirm.",
   },
   {
     keys: /\b(my (stocks|tokens|holdings|portfolio)|what i own|see (my|what))\b/i,
     answer: () =>
-      "Your tokens sit in your own wallet, so your wallet app shows them (look for names ending in a small c, like NVDAc). " +
-      "To see how many real shares that is, multiply your token amount by the multiplier shown on the stock's page in Stock Buddy.",
+      "Connect your wallet and Stock Buddy lists your stocks under My stocks, with the number of shares and today's value. " +
+      "Your wallet app shows them too, as names ending in a small c, like NVDAc.",
   },
   {
     keys: /\b(buy|purchase|how do i (get|start))\b/i,
     answer: () =>
-      "To buy with Stock Buddy: connect a wallet that has some USDC on Base, pick a stock, choose an amount (from $1), and review the quote. You'll let the swap use the exact USDC amount, then confirm the purchase in your wallet. You'll see the result and a receipt link. You stay in control the whole time, and Stock Buddy never holds your money.",
+      "Say \"buy $5 of NVIDIA\" here, or connect a wallet with USDC on Base, pick a stock and enter an amount from $1 to $100. Review the quote, allow the swap to use that exact amount of USDC, then confirm the purchase in your wallet. Stock Buddy never holds your money.",
   },
   {
     // Case-sensitive "US"/"UK" so words like "tell us" don't match.
@@ -155,9 +155,9 @@ export function builtInAnswer(question: string, stock?: Stock, market?: MarketSt
   for (const t of TOPICS) if (t.keys.test(question)) return t.answer(stock, market);
   if (stock && market) {
     return explainStock(stock, market).join(" ") +
-      " You can ask me about multipliers, dividends, market hours, costs or risks.";
+      " Ask me about multipliers, dividends, market hours, costs or risks.";
   }
-  return "I can explain how tokenized stocks work in plain language. Try asking: \"What is a tokenized stock?\", \"Why is the price different at night?\", \"What happens with dividends?\" or \"What does it cost to buy?\"";
+  return "I explain how tokenized stocks work and prepare trades. Try \"What is a tokenized stock?\", \"Why is the price different at night?\" or \"buy $5 of NVIDIA\".";
 }
 
 export function systemPrompt(stock?: Stock, market?: MarketStatus): string {

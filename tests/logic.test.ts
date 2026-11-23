@@ -131,7 +131,7 @@ test("plural questions reach the right topic", () => {
   assert.match(builtInAnswer("What are the risks?"), /lose money/);
   assert.match(builtInAnswer("Are there any fees?"), /network fee/);
   assert.match(builtInAnswer("what about stock splits"), /split/);
-  assert.match(builtInAnswer("What does 1 NVDAc mean?", SAMPLE_STOCKS[0]), /how many real shares/);
+  assert.match(builtInAnswer("What does 1 NVDAc mean?", SAMPLE_STOCKS[0]), /number of real shares one token tracks/);
 });
 
 // ---------- Real Coinbase API shapes (seen live on 23 Nov 2026) ----------

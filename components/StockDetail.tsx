@@ -12,6 +12,7 @@ import { Chat } from "./Chat.tsx";
 import { ShareRow } from "./ShareRow.tsx";
 import { StockIcon, GapPill } from "./StockList.tsx";
 import { gapSentence, type LivePrice } from "@/lib/pricing.ts";
+import { GapMeter } from "./landing/GapMeter.tsx";
 
 export function StockDetail({ stock, market, liveData, onBack, livePrice, priceLoading, initialTab = "buy", order }: {
   stock: Stock; market: MarketStatus; liveData: boolean; onBack: () => void;
@@ -34,42 +35,52 @@ export function StockDetail({ stock, market, liveData, onBack, livePrice, priceL
     <div className="detail">
       <button className="btn btn-link back" onClick={onBack}>Back to all stocks</button>
       <header className="detail-head">
-        <StockIcon stock={stock} size={48} />
-        <div>
+        <StockIcon stock={stock} size={52} />
+        <div className="detail-title">
           <h1>{stock.name}</h1>
-          <p className="muted">{stock.symbol}, a token on Base</p>
+          <p className="muted">{stock.symbol}, a token on Base that tracks {stock.ticker} shares</p>
         </div>
+        {liveData && livePrice && (
+          <div className="detail-price">
+            <strong>{formatUsd(livePrice.tradingPrice)}</strong>
+            <GapPill price={livePrice} />
+          </div>
+        )}
       </header>
 
-      <section className="card facts">
+      {liveData && stock.navPrice !== undefined && (livePrice || priceLoading) && (
+        <GapMeter stocks={[stock]} prices={new Map(livePrice ? [[stock.address.toLowerCase(), livePrice]] : [])} market={market} single={stock} />
+      )}
+
+      <dl className="stat-row facts">
         <div className="fact">
-          <span className="muted small">Official price</span>
-          <strong className="big">{stock.navPrice !== undefined ? formatUsd(stock.navPrice) : "Not published yet"}</strong>
-          <span className="muted small">{stock.navPrice !== undefined ? `per token, updated ${timeAgo(stock.navPriceUpdatedAt)}` : "Coinbase hasn't published one for this token"}</span>
+          <dt>Official price</dt>
+          <dd className="big">{stock.navPrice !== undefined ? formatUsd(stock.navPrice) : "Not published"}</dd>
+          <dd className="muted small">{stock.navPrice !== undefined ? `Updated ${timeAgo(stock.navPriceUpdatedAt)}` : "Coinbase hasn't published one yet"}</dd>
         </div>
-        {liveData && (
+        {liveData && !livePrice && (
           <div className="fact">
-            <span className="muted small">Trading on Base</span>
-            <strong className="big">{livePrice ? formatUsd(livePrice.tradingPrice) : priceLoading ? "Checking…" : "Unavailable"}</strong>
-            <span className="muted small">{livePrice ? <GapPill price={livePrice} /> : priceLoading ? "Getting a live price" : "No trading route right now"}</span>
+            <dt>Trading on Base</dt>
+            <dd className="big">{priceLoading ? "Checking" : "Unavailable"}</dd>
+            <dd className="muted small">{priceLoading ? "Getting a live price" : "No trading route right now"}</dd>
           </div>
         )}
         <div className="fact">
-          <span className="muted small">1 token equals</span>
-          <strong className="big">{sharesPerToken(stock)}</strong>
-          <span className="muted small">{stock.ticker} share{stock.multiplier === 1 ? "" : "s"}</span>
+          <dt>1 token equals</dt>
+          <dd className="big">{sharesPerToken(stock)}</dd>
+          <dd className="muted small">{stock.ticker} share{stock.multiplier === 1 ? "" : "s"}</dd>
         </div>
         <div className="fact">
-          <span className="muted small">Price status</span>
-          <strong className={`big ${frozen ? "warn-text" : "ok"}`}>{frozen ? "Frozen" : "Updating"}</strong>
-          <span className="muted small">{market.label}</span>
+          <dt>Price status</dt>
+          <dd className={`big ${frozen ? "warn-text" : "ok"}`}>{frozen ? "Frozen" : "Updating"}</dd>
+          <dd className="muted small">{market.label}</dd>
         </div>
-      </section>
+      </dl>
 
-      <section className="card">
+      <section className="card plain">
         <h2>In plain English</h2>
         {explainStock(stock, market).map((l, i) => <p key={i}>{l}</p>)}
-        {gapText && <p className={Math.abs(livePrice?.gapPct ?? 0) >= 2 ? "warn" : ""}>{gapText}</p>}
+        {gapText && <p>{gapText}</p>}
       </section>
 
       <div className="detail-grid">

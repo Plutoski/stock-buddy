@@ -10,11 +10,12 @@ import type { LivePrice } from "@/lib/pricing.ts";
 const PREFERRED = ["NVDA", "AAPL", "TSLA", "GOOGL", "MSFT", "META", "AMZN"];
 
 /** The hero: a live comparison of what a stock trades for on Base and its official price. */
-export function GapMeter({ stocks, prices, market, onOpen }: {
-  stocks: Stock[]; prices: Map<string, LivePrice>; market?: MarketStatus; onOpen: (s: Stock) => void;
+export function GapMeter({ stocks, prices, market, onOpen, single }: {
+  stocks: Stock[]; prices: Map<string, LivePrice>; market?: MarketStatus; onOpen?: (s: Stock) => void;
+  /** On a stock's own page: show only that stock, with no picker and no "Open" button. */
+  single?: Stock;
 }) {
-  const withPrice = PREFERRED
-    .map((t) => stocks.find((s) => s.ticker === t))
+  const withPrice = (single ? [single] : PREFERRED.map((t) => stocks.find((s) => s.ticker === t)))
     .filter((s): s is Stock => !!s && prices.has(s.address.toLowerCase()) && s.navPrice !== undefined)
     .slice(0, 4);
   const [pick, setPick] = useState<string | null>(null);
@@ -22,8 +23,8 @@ export function GapMeter({ stocks, prices, market, onOpen }: {
 
   if (!stock) {
     return (
-      <div className="meter meter-loading" aria-live="polite">
-        <p className="meter-title">Getting live prices on Base</p>
+      <div className={`meter meter-loading ${single ? "meter-single" : ""}`} aria-live="polite">
+        <p className="meter-title">Getting the live price on Base</p>
         <div className="meter-track"><span className="meter-skeleton" /></div>
         <p className="muted small">This takes a few seconds.</p>
       </div>
@@ -44,10 +45,10 @@ export function GapMeter({ stocks, prices, market, onOpen }: {
     : `${stock.ticker} trades ${Math.abs(gap).toFixed(1)}% ${dir} its official price right now. A $100 purchase would cost about $${Math.abs(gap).toFixed(2)} ${gap > 0 ? "more" : "less"} than the official value.`;
 
   return (
-    <div className="meter">
+    <div className={`meter ${single ? "meter-single" : ""}`}>
       <div className="meter-head">
         <p className="meter-title">Live prices on Base</p>
-        {withPrice.length > 1 && (
+        {!single && withPrice.length > 1 && (
           <div className="meter-pick" role="group" aria-label="Choose a stock">
             {withPrice.map((s) => (
               <button key={s.ticker} className={s.ticker === stock.ticker ? "on" : ""} aria-pressed={s.ticker === stock.ticker}
@@ -84,7 +85,9 @@ export function GapMeter({ stocks, prices, market, onOpen }: {
 
       <div className="meter-foot">
         <span className="muted small">{market?.label ?? ""}</span>
-        <button className="btn btn-primary" onClick={() => onOpen(stock)}>Open {stock.name.split(/[\s,]/)[0]}</button>
+        {single
+          ? <span className="muted small">Gap shown for a $10 trade</span>
+          : <button className="btn btn-primary" onClick={() => onOpen?.(stock)}>Open {stock.name.split(/[\s,]/)[0]}</button>}
       </div>
     </div>
   );

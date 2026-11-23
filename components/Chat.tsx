@@ -6,6 +6,7 @@ import { parseTradeIntent, type TradeIntent } from "@/lib/intent.ts";
 import { isAdviceQuestion } from "@/lib/explain.ts";
 import { useOrders } from "./OrderContext.tsx";
 import { TradeCard } from "./TradeCard.tsx";
+import { Logo } from "./Logo.tsx";
 
 interface Msg { role: "user" | "assistant"; content: string; intent?: TradeIntent }
 
@@ -77,15 +78,21 @@ export function Chat({ stock }: { stock?: Stock }) {
   return (
     <section className="card chat" aria-label="Ask Stock Buddy">
       <div className="chat-head">
-        <h3>Ask Stock Buddy</h3>
-        {mode && <span className="pill small">{mode === "agent" ? "Agent" : mode === "ai" ? "AI answers" : mode === "guard" ? "No advice" : "Built-in answers"}</span>}
+        <span className="agent-id">
+          <Logo size={34} />
+          <span>
+            <h3>Ask Stock Buddy</h3>
+            <span className="muted small">Checks live prices and prepares trades. You approve them.</span>
+          </span>
+        </span>
+        {mode && <span className="pill tiny">{mode === "agent" ? "Order ready" : mode === "ai" ? "AI answer" : mode === "guard" ? "No advice" : "Answer"}</span>}
       </div>
       <div className="chat-log" aria-live="polite" ref={logRef}>
-        {messages.length === 0 && <p className="muted small">Ask anything about how {stock ? `${stock.symbol} works` : "tokenized stocks work"}, or tell me what to do, like &quot;buy $5 of {stock ? stock.ticker : "NVIDIA"}&quot; or &quot;sell half my {stock ? stock.ticker : "Google"}&quot;. I explain and prepare trades. I don&apos;t give advice.</p>}
+        {messages.length === 0 && <p className="chat-empty">Ask how {stock ? `${stock.symbol} works` : "tokenized stocks work"}, or say what you want to do, like &quot;buy $5 of {stock ? stock.ticker : "NVIDIA"}&quot; or &quot;sell half my {stock ? stock.ticker : "Google"}&quot;. I don&apos;t give financial advice.</p>}
         {messages.map((m, i) => m.intent
           ? <TradeCard key={i} intent={m.intent} />
           : <div key={i} className={`bubble ${m.role}`} dir="auto">{m.content}</div>)}
-        {loading && <div className="bubble assistant typing">Thinking…</div>}
+        {loading && <div className="bubble assistant typing">Checking…</div>}
       </div>
       <div className="chips">
         {suggestions.map((s) => (

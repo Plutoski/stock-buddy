@@ -78,7 +78,7 @@ export default function ProofPage() {
 
           {data && data.configured && (
             <>
-              <div className="card facts">
+              <div className="stat-row facts">
                 <div className="fact"><span className="muted small">Verified purchases</span><strong className="big">{data.purchases}</strong></div>
                 <div className="fact"><span className="muted small">Unique wallets</span><strong className="big">{data.wallets}</strong></div>
                 <div className="fact"><span className="muted small">Verified sales</span><strong className="big">{data.sales ?? 0}</strong></div>

@@ -38,6 +38,7 @@ export function StockList({ stocks, selected, onSelect, prices }: {
     <div className="list">
       <input className="search" placeholder="Search Apple, NVDA, Tesla…" value={q} onChange={(e) => setQ(e.target.value)} aria-label="Search stocks" />
       {shown.length === 0 && <p className="muted">No stocks match "{q}".</p>}
+      {shown.length > 0 && <div className="list-cols" aria-hidden><span>Company</span><span>Price on Base</span></div>}
       <ul>
         {shown.map((s) => (
           <li key={s.address}>

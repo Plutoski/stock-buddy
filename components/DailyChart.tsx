@@ -18,6 +18,9 @@ export function DailyChart({ records }: { records: { wallet: string; at: string 
   const barW = Math.max(6, slot - 6);
   const y = (v: number) => padT + (H - padT - padB) * (1 - v / top);
   const h = hover !== null ? data[hover] : null;
+  if (data.every((d) => d.trades === 0)) {
+    return <p className="muted">No trades in the last 14 days yet. The chart fills in from the first one.</p>;
+  }
 
   return (
     <div className="daily">

@@ -1,32 +1,22 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextRequest, NextResponse, after } from "next/server";
+import { rpc } from "@/lib/rpc.ts";
+import { runScan } from "@/lib/run-scan.ts";
 import { getStocks } from "@/lib/stocks.ts";
 import { verifyTrade, summarize, type RpcReceipt, type RpcTx } from "@/lib/proof.ts";
 import { isRefCode, refCodeFor } from "@/lib/referral.ts";
-import { storeConfigured, saveProof, hasProof, listProofs, builtFor, overLimit } from "@/lib/store.ts";
+import { storeConfigured, saveProof, hasProof, listProofs, builtFor, overLimit, addRefIfMissing } from "@/lib/store.ts";
 
 export const dynamic = "force-dynamic";
 
-const RPC = process.env.BASE_RPC_URL || "https://mainnet.base.org";
 const EXCLUDE = (process.env.PROOF_EXCLUDE_WALLETS || "").split(",");
-
-async function rpc<T>(method: string, params: unknown[]): Promise<T> {
-  const res = await fetch(RPC, {
-    method: "POST",
-    headers: { "content-type": "application/json" },
-    body: JSON.stringify({ jsonrpc: "2.0", id: 1, method, params }),
-    cache: "no-store",
-    signal: AbortSignal.timeout(8000),
-  });
-  const body = await res.json();
-  if (body.error) throw new Error(body.error.message || "rpc error");
-  return body.result as T;
-}
 
 // GET /api/proof -> public, verified purchase list and totals (builder's own wallets excluded)
 export async function GET() {
   if (!storeConfigured()) {
     return NextResponse.json({ configured: false, purchases: 0, sales: 0, wallets: 0, usdcTotal: 0, usdcReceived: 0, records: [], excludedWallets: 0, referredWallets: 0 });
   }
+  // Each visit to /proof also gives the trade finder a chance to run (at most once every 2 minutes).
+  after(() => runScan(120).catch((e) => console.error("[proof] background scan failed", e)));
   try {
     const summary = summarize(await listProofs(), EXCLUDE);
     return NextResponse.json({ configured: true, ...summary }, { headers: { "cache-control": "public, s-maxage=30" } });
@@ -44,7 +34,11 @@ export async function POST(req: NextRequest) {
   if (!storeConfigured()) return NextResponse.json({ error: "Trade proof isn't switched on yet." }, { status: 503 });
 
   try {
-    if (await hasProof(hash)) return NextResponse.json({ ok: true, already: true });
+    if (await hasProof(hash)) {
+      const ref = body?.ref;
+      if (isRefCode(ref)) await addRefIfMissing(hash, ref).catch(() => {});
+      return NextResponse.json({ ok: true, already: true });
+    }
     // Each check costs two blockchain lookups, so limit how often one visitor can ask.
     const ip = (req.headers.get("x-forwarded-for") || "").split(",")[0].trim() || "unknown";
     if (await overLimit(`proof:${ip}`, 30, 600).catch(() => false)) {

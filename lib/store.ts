@@ -2,6 +2,7 @@
 // On Vercel: Storage > Create > Upstash (Redis) > connect to this project. That adds
 // KV_REST_API_URL and KV_REST_API_TOKEN (or UPSTASH_REDIS_REST_URL / _TOKEN) automatically.
 import type { ProofRecord } from "./proof.ts";
+import { refCodeFor } from "./referral.ts";
 
 const URL_ = process.env.KV_REST_API_URL || process.env.UPSTASH_REDIS_REST_URL || "";
 const TOKEN = process.env.KV_REST_API_TOKEN || process.env.UPSTASH_REDIS_REST_TOKEN || "";
@@ -58,6 +59,33 @@ export async function loadStockList(): Promise<string | null> { return (await re
 // A trade then counts as "made through Stock Buddy" if its onchain input contains that calldata
 // (for normal wallets it IS the input; for smart wallets it sits inside the bundled call).
 const builtKey = (wallet: string) => `stockbuddy:built:${wallet.toLowerCase()}`;
+const BUILDERS = "stockbuddy:builders";
+
+/** Wallets Stock Buddy built a swap for in the last 48 hours. */
+export async function recentBuilders(): Promise<string[]> {
+  return ((await redis(["ZRANGEBYSCORE", BUILDERS, Date.now() - 172_800_000, "+inf"], 2000)) as string[] | null) || [];
+}
+
+const SCAN_BLOCK = "stockbuddy:scan:block";
+export async function getScanBlock(): Promise<number | null> {
+  const v = await redis(["GET", SCAN_BLOCK], 1500);
+  return v === null || v === undefined ? null : Number(v);
+}
+export async function setScanBlock(n: number): Promise<void> { await redis(["SET", SCAN_BLOCK, n], 1500); }
+
+/** Take a short lock so only one trade finder runs at a time. */
+export async function tryLock(name: string, seconds: number): Promise<boolean> {
+  return (await redis(["SET", `stockbuddy:lock:${name}`, "1", "NX", "EX", seconds], 1500)) === "OK";
+}
+
+/** Add a referral code to a trade recorded without one (for example, found by the trade finder first). */
+export async function addRefIfMissing(hash: string, ref: string): Promise<void> {
+  const raw = (await redis(["HGET", KEY, hash], 1500)) as string | null;
+  if (!raw) return;
+  const rec = JSON.parse(raw) as ProofRecord;
+  if (rec.ref || refCodeFor(rec.wallet) === ref) return; // never a wallet's own code
+  await redis(["HSET", KEY, hash, JSON.stringify({ ...rec, ref })], 1500);
+}
 
 export async function rememberBuilt(wallet: string, calldata: string): Promise<void> {
   const key = builtKey(wallet);
@@ -65,7 +93,12 @@ export async function rememberBuilt(wallet: string, calldata: string): Promise<v
   const res = await fetch(URL_.replace(/\/$/, "") + "/pipeline", {
     method: "POST",
     headers: { authorization: `Bearer ${TOKEN}`, "content-type": "application/json" },
-    body: JSON.stringify([["LPUSH", key, calldata.toLowerCase().replace(/^0x/, "")], ["LTRIM", key, 0, 19], ["EXPIRE", key, 172800]]),
+    body: JSON.stringify([
+      ["LPUSH", key, calldata.toLowerCase().replace(/^0x/, "")], ["LTRIM", key, 0, 19], ["EXPIRE", key, 172800],
+      // Wallets with a recent built swap: the trade finder watches these.
+      ["ZADD", BUILDERS, Date.now(), wallet.toLowerCase()],
+      ["ZREMRANGEBYSCORE", BUILDERS, 0, Date.now() - 172_800_000],
+    ]),
     cache: "no-store",
     signal: AbortSignal.timeout(1500),
   });

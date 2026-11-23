@@ -120,6 +120,7 @@ export default function Home() {
           <a href="/#how" onClick={() => setSelected(null)}>How it works</a>
           <a href="/#why" onClick={() => setSelected(null)}>Price gaps</a>
           <a href="/proof">Proof</a>
+          <a href="/log">Build log</a>
         </nav>
         <ConnectButton />
       </header>
@@ -211,6 +212,7 @@ export default function Home() {
           </p>
           <nav className="footer-links" aria-label="Footer">
             <a href="/proof">Verified trades</a>
+            <a href="/log">Build log</a>
             <a href="/#faq">Questions</a>
             <a href="https://docs.base.org" target="_blank" rel="noreferrer">About Base</a>
           </nav>

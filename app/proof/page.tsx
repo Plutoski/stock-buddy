@@ -1,5 +1,6 @@
 "use client";
 
+import { DailyChart } from "@/components/DailyChart.tsx";
 import { Logo } from "@/components/Logo.tsx";
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
@@ -88,6 +89,12 @@ export default function ProofPage() {
               {data.excludedWallets > 0 && (
                 <p className="muted small">{data.excludedWallets} builder wallet{data.excludedWallets === 1 ? " is" : "s are"} excluded from these numbers.</p>
               )}
+
+              <section className="card">
+                <h2>Trades per day</h2>
+                <p className="muted small">The last 14 days, in UTC. The <a href="/log">build log</a> shows what changed on each day.</p>
+                <DailyChart records={data.records} />
+              </section>
 
               <section className="card">
                 <h2>Trades</h2>

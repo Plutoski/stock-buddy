@@ -397,3 +397,29 @@ button, input, summary { font: inherit; color: inherit; }
 }
 .topbar > .btn:last-child { margin-left: auto; }
 .detail .card > h2 { font-size: 1.12rem; letter-spacing: -0.005em; }
+
+/* Build log */
+.log { list-style: none; padding: 0; margin: 1.5rem 0 0; }
+.log > li { position: relative; padding: 0 0 1.75rem 1.5rem; border-left: 2px solid var(--border); }
+.log > li::before { content: ""; position: absolute; left: -7px; top: 0.45rem; width: 12px; height: 12px; border-radius: 50%; background: var(--blue); }
+.log > li:last-child { border-left-color: transparent; }
+.log h2 { font-size: 1.12rem; margin: 0; }
+.log ul { margin: 0.5rem 0 0; padding-left: 1.1rem; }
+.log ul li { margin: 0.3rem 0; }
+.log ul a { color: var(--text); text-decoration: none; }
+.log ul a:hover { color: var(--primary); text-decoration: underline; }
+
+/* Daily trades chart on /proof */
+.daily { position: relative; }
+.daily svg { display: block; width: 100%; height: auto; overflow: visible; }
+.daily .bar { fill: var(--blue); }
+.daily .bar-zero { fill: var(--border); }
+.daily .hit { fill: transparent; cursor: default; }
+.daily .grid { stroke: var(--border); stroke-width: 1; }
+.daily .axis { fill: var(--muted); font-size: 11px; font-family: var(--body); }
+.daily .tip { position: absolute; transform: translate(-50%, calc(-100% - 10px)); background: var(--ink); color: #fff; padding: 0.45rem 0.65rem; border-radius: 8px; font-size: 0.85rem; white-space: nowrap; pointer-events: none; }
+@media (prefers-color-scheme: dark) { .daily .tip { background: #fff; color: var(--ink); } }
+.daily details { margin-top: 0.75rem; }
+.daily table { border-collapse: collapse; font-size: 0.9rem; margin-top: 0.5rem; }
+.daily td, .daily th { padding: 0.3rem 1rem 0.3rem 0; text-align: left; border-bottom: 1px solid var(--border); }
+@media (max-width: 600px) { .daily .axis { font-size: 22px; } }

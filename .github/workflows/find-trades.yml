@@ -1,0 +1,15 @@
+# Every 10 minutes, ask the live app to look for Stock Buddy trades on Base that weren't
+# reported by the browser (for example, because the visitor closed the tab).
+# GitHub may run scheduled jobs a few minutes late; that is fine here.
+name: Find trades
+on:
+  schedule:
+    - cron: "*/10 * * * *"
+  workflow_dispatch: {}
+jobs:
+  scan:
+    runs-on: ubuntu-latest
+    timeout-minutes: 2
+    steps:
+      - name: Run the trade finder
+        run: curl -fsS --max-time 60 "https://stock-buddy-gnt7.vercel.app/api/scan"

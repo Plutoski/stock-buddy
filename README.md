@@ -27,7 +27,8 @@ Stock Buddy shows each of these before you buy or sell.
 | Ask "Should I buy Tesla?" | Stock Buddy says it can't give financial advice and offers to explain prices and risks instead |
 | Open any stock | Plain-English facts: what one token equals in shares, the official price, whether it is frozen, and the gap |
 | Connect a wallet | My stocks lists your tokenized stocks in shares and dollars |
-| Open `/proof` | Every trade made through Stock Buddy, read back from the Base blockchain, with a Basescan link for each. The builder's own wallets are left out |
+| Open `/proof` | Every trade made through Stock Buddy, read back from the Base blockchain, with a Basescan link for each and a chart of trades per day. The builder's own wallets are left out |
+| Open `/log` | Every change to the code, grouped by day, read from this repository |
 | Share a stock | WhatsApp, X and copy-link buttons. The link preview shows the live trading price, the official price and the gap |
 
 ## How your money stays safe
@@ -48,6 +49,8 @@ The server reads the transaction and its receipt from a Base RPC. A trade counts
 - the tokens were paid out to the same wallet that made the swap,
 - the transaction carries the `stock-buddy` source label, or contains the exact swap calldata Stock Buddy built for that wallet.
 
+A trade is checked in two ways. The browser sends the transaction hash after a trade succeeds. A trade finder also reads stock-token transfers on Base and checks any transaction that involves a wallet Stock Buddy built a swap for in the last 48 hours, so a trade still counts if the visitor closes the tab. The finder runs when `/proof` is opened and every 10 minutes through a GitHub Actions schedule (`.github/workflows/find-trades.yml`), which calls `/api/scan`.
+
 Wallets listed in `PROOF_EXCLUDE_WALLETS` are left out of every number. Shared links carry a short code from the sharer's wallet, so `/proof` can count wallets that came from a friend's link. Nobody is paid for referrals.
 
 ## How it is built
@@ -57,7 +60,7 @@ Wallets listed in `PROOF_EXCLUDE_WALLETS` are left out of every number. Shared l
 - Next.js 15, React 19, wagmi and viem. Base Account for passkey wallets on phone and laptop, plus browser wallets such as MetaMask.
 - Upstash Redis for verified trades and the calldata Stock Buddy built.
 - The chat parses trade requests itself and answers common questions with fixed answers. Setting `ANTHROPIC_API_KEY` adds model answers for other questions.
-- 84 automated tests cover price gaps, market hours, trade parsing, the advice guard and trade verification.
+- 90 automated tests cover price gaps, market hours, trade parsing, the advice guard, trade verification and the trade finder.
 
 ## Run it locally
 
@@ -80,6 +83,7 @@ npm test                     # run the automated tests
 | `ANTHROPIC_MODEL` | No | Defaults to `claude-haiku-5-5` |
 | `NEXT_PUBLIC_BUILDER_CODE` | No | A Base Builder Code (ERC-8021). Not set in the live app |
 | `NEXT_PUBLIC_SITE_URL` | No | The public address used in link previews. Defaults to the live app |
+| `GITHUB_TOKEN` | No | Raises GitHub's rate limit for `/log`. The page works without it |
 | `USE_SAMPLE_DATA` | No | Set to `1` to use sample data without a network |
 
 ## Disclaimer

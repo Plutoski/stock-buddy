@@ -1,7 +1,34 @@
+# Dependencies and build output
 node_modules
 .next
-.env
-.env.local
+out
+build
 *.tsbuildinfo
 next-env.d.ts
+coverage
+
+# Secrets and local settings: never commit these
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+.vercel
+
+# Local files
 screenshots
+*.zip
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.DS_Store
+Thumbs.db
+.idea
+.vscode
+
+# Planning notes, drafts and scratch work
+notes
+drafts
+scratch
+*.local.md

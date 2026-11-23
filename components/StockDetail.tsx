@@ -9,6 +9,7 @@ import type { PreparedOrder } from "./OrderContext.tsx";
 import { BuyPanel } from "./BuyPanel.tsx";
 import { SellPanel } from "./SellPanel.tsx";
 import { Chat } from "./Chat.tsx";
+import { ShareRow } from "./ShareRow.tsx";
 import { StockIcon, GapPill } from "./StockList.tsx";
 import { gapSentence, type LivePrice } from "@/lib/pricing.ts";
 
@@ -91,6 +92,13 @@ export function StockDetail({ stock, market, liveData, onBack, livePrice, priceL
         </div>
         <Chat stock={stock} />
       </div>
+
+      <section className="card share-card">
+        <h3>Share {stock.ticker}</h3>
+        <p className="muted small">Send a friend this stock with its live price gap. The preview shows the trading and official prices.</p>
+        <ShareRow ticker={stock.ticker} compact
+          message={`${stock.name} as a token on Base: Stock Buddy shows the live price next to the official one before you buy. From $1:`} />
+      </section>
 
       <p className="muted tiny mono">Contract: {stock.address}</p>
     </div>

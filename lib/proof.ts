@@ -30,6 +30,7 @@ export interface ProofRecord {
   usdcReceived?: number;   // sells: USDC received
   block: number;
   at: string;              // when we verified it
+  ref?: string;            // referral code of the friend whose link brought this wallet (first 6 hex of their wallet)
 }
 
 export type ProofResult = { ok: true; record: ProofRecord } | { ok: false; reason: string };
@@ -137,6 +138,7 @@ export interface ProofSummary {
   usdcReceived: number;   // USDC received from sales
   records: ProofRecord[];
   excludedWallets: number;
+  referredWallets: number; // wallets that arrived through a friend's shared link
 }
 
 /** Totals for the public page. The builder's own wallets are left out of every number. */
@@ -153,5 +155,6 @@ export function summarize(records: ProofRecord[], exclude: string[]): ProofSumma
     usdcReceived: sells.reduce((sum, r) => sum + (r.usdcReceived ?? 0), 0),
     records: [...counted].sort((a, b) => b.block - a.block),
     excludedWallets: ex.size,
+    referredWallets: new Set(counted.filter((r) => r.ref).map((r) => r.wallet)).size,
   };
 }

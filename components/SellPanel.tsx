@@ -1,5 +1,6 @@
 "use client";
 
+import { currentRef } from "@/lib/referral.ts";
 import { useEffect, useRef, useState } from "react";
 import { encodeFunctionData, erc20Abi, formatUnits, parseUnits } from "viem";
 import { base } from "wagmi/chains";
@@ -106,7 +107,7 @@ export function SellPanel({ stock, liveData, presetFraction, presetTokens }: { s
         await new Promise((r) => setTimeout(r, wait));
         if (cancelled) return;
         try {
-          const res = await fetch("/api/proof", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ hash: txHash }) });
+          const res = await fetch("/api/proof", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ hash: txHash, ref: currentRef(address) }) });
           if (res.ok) { setProofState("saved"); return; }
           if (res.status === 422 || res.status === 400) break;
         } catch { /* try again */ }

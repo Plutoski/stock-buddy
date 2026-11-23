@@ -21,7 +21,8 @@ Stock Buddy shows all of this in plain English. Its chat agent **explains and pr
 | Ask "Why is the price different at night?" | A clear explanation of market hours and price drift |
 | Connect a wallet and tap "See what I'd get" | A quote showing the trading price vs the official reference, with a warning if they differ by 1% or more |
 | Open any purchase receipt on Basescan | Every swap goes through the KyberSwap router and is tagged with the source `stock-buddy` |
-| Open `/proof` | Every purchase made through Stock Buddy, checked on the Base blockchain, with Basescan links and unique-buyer counts (the builder's own wallets excluded) |
+| Open `/proof` | Every trade (buy or sell) made through Stock Buddy, checked on the Base blockchain, with Basescan links, unique-wallet counts and how many wallets came from a friend's shared link (the builder's own wallets excluded) |
+| Share a stock (`/s/NVDA`) | WhatsApp / X / copy-link buttons on every stock and after each purchase. The link preview is a live card with the trading price, the official price and the gap. Links carry a referral code so /proof can count friends who joined; nobody is paid for referrals |
 
 ## Safety by design
 

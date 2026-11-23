@@ -73,3 +73,20 @@ test("summary excludes the builder's own wallets and counts unique buyers", () =
   assert.equal(s.excludedWallets, 1);
   assert.equal(s.records[0].hash, "0x3");
 });
+
+test("referrals: wallets that came through a friend's link are counted once, builder wallets left out", async () => {
+  const { isRefCode, refCodeFor, shareUrl } = await import("../lib/referral.ts");
+  assert.equal(refCodeFor("0xA11cE0000000000000000000000000000000B0B5"), "a11ce0");
+  assert.equal(isRefCode("a11ce0"), true);
+  assert.equal(isRefCode("A11CE0"), false);
+  assert.equal(isRefCode("<script>"), false);
+  assert.equal(shareUrl("https://x.app", "BRK.B", "0xA11cE0000000000000000000000000000000B0B5"), "https://x.app/s/BRK.B?r=a11ce0");
+  const base = { symbol: "NVDAc", tokens: 0.03, usdcPaid: 5, at: "2026-11-23T10:00:00Z" };
+  const s = summarize([
+    { ...base, hash: "0x1", wallet: "0xaaa", block: 1, ref: "a11ce0" },
+    { ...base, hash: "0x2", wallet: "0xaaa", block: 2, ref: "a11ce0" },
+    { ...base, hash: "0x3", wallet: "0xbbb", block: 3 },
+    { ...base, hash: "0x4", wallet: "0xme", block: 4, ref: "a11ce0" },
+  ], ["0xme"]);
+  assert.equal(s.referredWallets, 1);
+});

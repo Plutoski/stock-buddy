@@ -12,6 +12,7 @@ import { Chat } from "@/components/Chat.tsx";
 import { MyStocks } from "@/components/MyStocks.tsx";
 import { OrderContext, type PreparedOrder } from "@/components/OrderContext.tsx";
 import type { LivePrice } from "@/lib/pricing.ts";
+import { rememberRef } from "@/lib/referral.ts";
 
 type Data = StocksResponse & { market: MarketStatus };
 
@@ -57,6 +58,23 @@ export default function Home() {
   });
   const priceMap = new Map<string, LivePrice>();
   for (const p of [...(topPrices?.prices || []), ...(selPrice?.prices || [])]) priceMap.set(p.address.toLowerCase(), p);
+
+  // Shared links (/s/NVDA?r=…) arrive as /?s=NVDA&r=…: remember who shared it and open that stock.
+  const wanted = useRef<string | null>(null);
+  useEffect(() => {
+    try {
+      const q = new URLSearchParams(window.location.search);
+      rememberRef(q.get("r"));
+      wanted.current = q.get("s")?.toUpperCase() || null;
+      if (q.has("s") || q.has("r")) window.history.replaceState(null, "", window.location.pathname);
+    } catch { /* ignore */ }
+  }, []);
+  useEffect(() => {
+    if (!wanted.current || !data) return;
+    const hit = data.stocks.find((s) => s.ticker === wanted.current || s.symbol.toUpperCase() === wanted.current);
+    wanted.current = null;
+    if (hit) setSelected(hit);
+  }, [data]);
 
   // Keep the selected stock fresh when data refreshes.
   useEffect(() => {

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getStocks } from "@/lib/stocks.ts";
 import { verifyTrade, summarize, type RpcReceipt, type RpcTx } from "@/lib/proof.ts";
+import { isRefCode, refCodeFor } from "@/lib/referral.ts";
 import { storeConfigured, saveProof, hasProof, listProofs, builtFor, overLimit } from "@/lib/store.ts";
 
 export const dynamic = "force-dynamic";
@@ -24,7 +25,7 @@ async function rpc<T>(method: string, params: unknown[]): Promise<T> {
 // GET /api/proof -> public, verified purchase list and totals (builder's own wallets excluded)
 export async function GET() {
   if (!storeConfigured()) {
-    return NextResponse.json({ configured: false, purchases: 0, sales: 0, wallets: 0, usdcTotal: 0, usdcReceived: 0, records: [], excludedWallets: 0 });
+    return NextResponse.json({ configured: false, purchases: 0, sales: 0, wallets: 0, usdcTotal: 0, usdcReceived: 0, records: [], excludedWallets: 0, referredWallets: 0 });
   }
   try {
     const summary = summarize(await listProofs(), EXCLUDE);
@@ -61,6 +62,9 @@ export async function POST(req: NextRequest) {
     const built = probe.ok ? await builtFor(probe.record.wallet).catch(() => [] as string[]) : [];
     const result = verifyTrade(tx, receipt, stocks, new Date(), () => built);
     if (!result.ok) return NextResponse.json({ error: result.reason }, { status: 422 });
+    // Which friend's link brought them (never their own code). Counted on /proof; nobody is paid for it.
+    const ref = body?.ref;
+    if (isRefCode(ref) && ref !== refCodeFor(result.record.wallet)) result.record.ref = ref;
     await saveProof(result.record);
     return NextResponse.json({ ok: true, record: result.record });
   } catch (e) {

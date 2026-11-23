@@ -14,6 +14,7 @@ interface ProofData {
   usdcTotal: number;
   records: ProofRecord[];
   excludedWallets: number;
+  referredWallets?: number;
 }
 
 const short = (a: string) => `${a.slice(0, 6)}…${a.slice(-4)}`;
@@ -80,6 +81,9 @@ export default function ProofPage() {
                 <div className="fact"><span className="muted small">Verified sales</span><strong className="big">{data.sales ?? 0}</strong></div>
                 <div className="fact"><span className="muted small">USDC spent on purchases</span><strong className="big">{money(data.usdcTotal)}</strong></div>
               </div>
+              {(data.referredWallets ?? 0) > 0 && (
+                <p className="small">{data.referredWallets} wallet{data.referredWallets === 1 ? "" : "s"} came from a friend&apos;s shared link.</p>
+              )}
               {data.excludedWallets > 0 && (
                 <p className="muted small">{data.excludedWallets} builder wallet{data.excludedWallets === 1 ? " is" : "s are"} excluded from these numbers.</p>
               )}

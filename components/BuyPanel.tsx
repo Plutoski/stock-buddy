@@ -1,5 +1,7 @@
 "use client";
 
+import { currentRef } from "@/lib/referral.ts";
+import { ShareRow } from "./ShareRow.tsx";
 import { useEffect, useRef, useState } from "react";
 import { encodeFunctionData, erc20Abi, formatUnits, parseUnits } from "viem";
 import { base } from "wagmi/chains";
@@ -88,7 +90,7 @@ export function BuyPanel({ stock, liveData, presetUsdc }: { stock: Stock; liveDa
         await new Promise((r) => setTimeout(r, wait));
         if (cancelled) return;
         try {
-          const res = await fetch("/api/proof", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ hash: txHash }) });
+          const res = await fetch("/api/proof", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ hash: txHash, ref: currentRef(address) }) });
           if (res.ok) { setProofState("saved"); return; }
           if (res.status === 422 || res.status === 400) break; // not a countable purchase; don't retry
         } catch { /* try again */ }
@@ -193,9 +195,7 @@ export function BuyPanel({ stock, liveData, presetUsdc }: { stock: Stock; liveDa
     }
   }
 
-  const shareText = encodeURIComponent(
-    `I just bought tokenized ${stock.ticker} on @base with Stock Buddy. It showed me the price gap first. ${typeof window !== "undefined" ? window.location.origin : ""}`,
-  );
+  const shareMsg = `I just bought ${stock.ticker} as a token on Base with Stock Buddy. It showed me the price gap before I paid. You can start with $1:`;
 
   return (
     <section className="card buy" aria-label={`Buy ${stock.symbol}`}>
@@ -219,8 +219,9 @@ export function BuyPanel({ stock, liveData, presetUsdc }: { stock: Stock; liveDa
           <p className="small"><a href={BASESCAN_TX + txHash} target="_blank" rel="noreferrer">View your receipt on Basescan ↗</a></p>
           {proofState === "saved" && <p className="small">Verified and added to the <a href="/proof">public list</a>.</p>}
           {proofState === "failed" && <p className="small muted">We couldn&apos;t add it to the <a href="/proof">public list</a> yet. You can paste your receipt link there later.</p>}
+          <p className="small muted">Tell a friend. Your link shows {stock.ticker}&apos;s live price gap, and /proof counts friends who trade through it.</p>
+          <ShareRow ticker={stock.ticker} message={shareMsg} />
           <div className="row">
-            <a className="btn btn-ghost" href={`https://x.com/intent/tweet?text=${shareText}`} target="_blank" rel="noreferrer">Share on X</a>
             <button className="btn btn-ghost" onClick={() => { setStep("idle"); setQuote(null); setTxHash(undefined); setApproveHash(undefined); setAgree(false); }}>Buy more</button>
           </div>
         </div>

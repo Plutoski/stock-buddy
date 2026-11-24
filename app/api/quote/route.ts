@@ -1,3 +1,4 @@
+import { limit } from "@/lib/ratelimit.ts";
 import { NextRequest, NextResponse } from "next/server";
 import { isAddress } from "viem";
 import { MIN_BUY_USDC, MAX_BUY_USDC } from "@/lib/constants.ts";
@@ -9,6 +10,8 @@ export const dynamic = "force-dynamic";
 // GET /api/quote?token=0x...&usdc=5
 // Asks KyberSwap for the best route to swap USDC into the stock token.
 export async function GET(req: NextRequest) {
+  const limited = await limit(req, "quote", 60, 60);
+  if (limited) return limited;
   const token = req.nextUrl.searchParams.get("token") || "";
   const usdc = Number(req.nextUrl.searchParams.get("usdc") || "0");
 

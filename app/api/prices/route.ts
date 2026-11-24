@@ -1,3 +1,4 @@
+import { limit } from "@/lib/ratelimit.ts";
 import { NextRequest, NextResponse } from "next/server";
 import { getStocks } from "@/lib/stocks.ts";
 import { getLivePrices } from "@/lib/quote.ts";
@@ -10,6 +11,8 @@ const MAX_TOKENS = 12;
 // GET /api/prices                 -> live trading prices for the 20 biggest stocks
 // GET /api/prices?tokens=0x..,0x.. -> live trading prices for specific stocks (max 30)
 export async function GET(req: NextRequest) {
+  // The default list is cached at the edge; asking for specific tokens is limited per visitor.
+  if (req.nextUrl.searchParams.get("tokens")) { const limited = await limit(req, "prices", 60, 60); if (limited) return limited; }
   const { stocks, source } = await getStocks();
   if (source !== "live") return NextResponse.json({ source, prices: [] });
 

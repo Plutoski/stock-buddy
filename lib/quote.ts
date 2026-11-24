@@ -1,4 +1,5 @@
 import { formatUnits, parseUnits } from "viem";
+import { isKyberRouter } from "./constants.ts";
 import type { Stock } from "./types.ts";
 import { KYBER_API, USDC_ADDRESS, USDC_DECIMALS } from "./constants.ts";
 import { kyberHeaders } from "./kyber.ts";
@@ -34,6 +35,7 @@ export async function getKyberQuote(stock: Stock, usdc: number, timeoutMs = 8000
     if (!res.ok || !rs?.amountOut) return null;
     const amountOutTokens = Number(formatUnits(BigInt(rs.amountOut), stock.decimals));
     if (!(amountOutTokens > 0)) return null;
+    if (!isKyberRouter(body.data.routerAddress)) { console.error("[quote] unexpected router", body.data.routerAddress); return null; }
     return {
       amountIn,
       amountOut: rs.amountOut,
@@ -113,6 +115,7 @@ export async function getKyberSellQuote(stock: Stock, amountInUnits: bigint, tim
     const tokensIn = Number(formatUnits(amountInUnits, stock.decimals));
     const usdcOut = Number(formatUnits(BigInt(rs.amountOut), USDC_DECIMALS));
     if (!(tokensIn > 0) || !(usdcOut > 0)) return null;
+    if (!isKyberRouter(body.data.routerAddress)) { console.error("[sell-quote] unexpected router", body.data.routerAddress); return null; }
     return {
       amountIn: amountInUnits.toString(),
       amountOut: rs.amountOut,

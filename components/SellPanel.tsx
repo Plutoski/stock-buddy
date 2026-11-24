@@ -6,7 +6,7 @@ import { encodeFunctionData, erc20Abi, formatUnits, parseUnits } from "viem";
 import { base } from "wagmi/chains";
 import { useAccount, useReadContract, useSendTransaction, useSwitchChain, useWaitForTransactionReceipt } from "wagmi";
 import type { Stock } from "@/lib/types.ts";
-import { BASESCAN_TX } from "@/lib/constants.ts";
+import { BASESCAN_TX, isKyberRouter } from "@/lib/constants.ts";
 import { withAttribution } from "@/lib/attribution.ts";
 import { formatUsd } from "@/lib/explain.ts";
 import { gapPct, sellGapSentence } from "@/lib/pricing.ts";
@@ -147,7 +147,7 @@ export function SellPanel({ stock, liveData, presetFraction, presetTokens }: { s
       if (seq !== quoteSeq.current) return;
       if (!res.ok) throw new Error(body.error || "The price service didn't answer. Try again in a minute.");
       const ok = typeof body.amountIn === "string" && body.amountIn === units.toString() && body.usdcOut > 0
-        && typeof body.routerAddress === "string" && /^0x[0-9a-fA-F]{40}$/.test(body.routerAddress);
+        && isKyberRouter(body.routerAddress); // only KyberSwap's known router on Base
       if (!ok) throw new Error("The price service sent a quote Stock Buddy couldn't check. Try again.");
       setQuote(body as SellQuote); setStep("quoted");
     } catch (e) {
@@ -180,7 +180,7 @@ export function SellPanel({ stock, liveData, presetFraction, presetTokens }: { s
       if (tx.to.toLowerCase() !== quote.routerAddress.toLowerCase()) throw new Error("The swap address changed after the quote, so Stock Buddy stopped. Get a new quote.");
       setStep("selling");
       await ensureBase();
-      setTxHash(await sendTransactionAsync({ to: tx.to, data: withAttribution(tx.data), value: BigInt(tx.value || 0), chainId: base.id }));
+      setTxHash(await sendTransactionAsync({ to: tx.to, data: withAttribution(tx.data), value: 0n, chainId: base.id }));
     } catch (e) {
       setError(friendlyError((e as Error).message)); setStep("quoted");
     } finally { busy.current = false; }

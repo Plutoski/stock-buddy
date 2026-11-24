@@ -10,4 +10,9 @@ export const MIN_BUY_USDC = 1;
 export const MAX_BUY_USDC = 100;
 export const DEFAULT_SLIPPAGE_BIPS = 50; // 0.5%
 
+// KyberSwap's swap router on Base. Stock Buddy only ever approves and sends to this address:
+// if the swap service returns any other address, the trade is stopped.
+export const KYBER_ROUTER_BASE = "0x6131B5fae19EA4f9D964eAc0408E4408b66337b5";
+export const isKyberRouter = (a: unknown) => typeof a === "string" && a.toLowerCase() === KYBER_ROUTER_BASE.toLowerCase();
+
 export const BASESCAN_TX = "https://basescan.org/tx/";

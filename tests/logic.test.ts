@@ -208,3 +208,12 @@ test("a Coinbase blip keeps serving the last good live list instead of switching
     globalThis.fetch = original; Date.now = realNow;
   }
 });
+
+test("only KyberSwap's known router on Base is accepted", async () => {
+  const { isKyberRouter } = await import("../lib/constants.ts");
+  assert.equal(isKyberRouter("0x6131B5fae19EA4f9D964eAc0408E4408b66337b5"), true);
+  assert.equal(isKyberRouter("0x6131b5fae19ea4f9d964eac0408e4408b66337b5"), true);
+  assert.equal(isKyberRouter("0x000000000000000000000000000000000000dEaD"), false);
+  assert.equal(isKyberRouter(undefined), false);
+  assert.equal(isKyberRouter(["0x6131B5fae19EA4f9D964eAc0408E4408b66337b5"]), false);
+});

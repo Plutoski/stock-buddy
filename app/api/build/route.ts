@@ -1,9 +1,10 @@
+import { limit } from "@/lib/ratelimit.ts";
 import { NextRequest, NextResponse } from "next/server";
 import { isAddress } from "viem";
 import { KYBER_API, DEFAULT_SLIPPAGE_BIPS } from "@/lib/constants.ts";
 import { kyberHeaders } from "@/lib/kyber.ts";
 import { getStocks } from "@/lib/stocks.ts";
-import { USDC_ADDRESS, MIN_BUY_USDC, MAX_BUY_USDC } from "@/lib/constants.ts";
+import { USDC_ADDRESS, MIN_BUY_USDC, MAX_BUY_USDC, isKyberRouter } from "@/lib/constants.ts";
 import { storeConfigured, rememberBuilt } from "@/lib/store.ts";
 
 export const dynamic = "force-dynamic";
@@ -11,6 +12,8 @@ export const dynamic = "force-dynamic";
 // POST /api/build { routeSummary, sender }
 // Turns a quote into the actual swap transaction the user signs in their wallet.
 export async function POST(req: NextRequest) {
+  const limited = await limit(req, "build", 20, 60);
+  if (limited) return limited;
   const body = await req.json().catch(() => null);
   const sender = body?.sender;
   if (!body?.routeSummary || !isAddress(sender)) {
@@ -54,12 +57,17 @@ export async function POST(req: NextRequest) {
     if (!res.ok || !data?.data || !data?.routerAddress) {
       return NextResponse.json({ error: "The quote expired or couldn't be prepared. Get a new quote." }, { status: 502 });
     }
+    // Safety: only KyberSwap's known router, and never a swap that also sends ETH.
+    if (!isKyberRouter(data.routerAddress) || (data.transactionValue && BigInt(data.transactionValue) !== 0n)) {
+      console.error("[build] refused unexpected swap", data.routerAddress, data.transactionValue);
+      return NextResponse.json({ error: "The swap service returned something unexpected, so Stock Buddy stopped. Nothing was sent." }, { status: 502 });
+    }
     // Remember this exact swap so /proof can recognise it onchain later (best effort).
     if (storeConfigured()) await rememberBuilt(sender, data.data).catch((e) => console.error("[build] remember failed", e));
     return NextResponse.json({
       to: data.routerAddress,
       data: data.data,
-      value: data.transactionValue || "0",
+      value: "0",
       amountOut: data.amountOut,
     });
   } catch (e) {

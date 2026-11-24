@@ -1,3 +1,4 @@
+import { limit } from "@/lib/ratelimit.ts";
 import { NextRequest, NextResponse } from "next/server";
 import { isAddress } from "viem";
 import { getStocks } from "@/lib/stocks.ts";
@@ -7,6 +8,8 @@ export const dynamic = "force-dynamic";
 
 // GET /api/sell-quote?token=0x...&units=123456  (units = the token's smallest units)
 export async function GET(req: NextRequest) {
+  const limited = await limit(req, "sellquote", 60, 60);
+  if (limited) return limited;
   const token = req.nextUrl.searchParams.get("token") || "";
   const unitsRaw = req.nextUrl.searchParams.get("units") || "";
   if (!isAddress(token)) return err("That stock address isn't valid.", 400);

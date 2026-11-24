@@ -1,3 +1,4 @@
+import { limit } from "@/lib/ratelimit.ts";
 import { NextRequest, NextResponse } from "next/server";
 import { getStocks } from "@/lib/stocks.ts";
 import { getMarketStatus } from "@/lib/market.ts";
@@ -9,6 +10,8 @@ interface Msg { role: "user" | "assistant"; content: string }
 
 // POST /api/chat { messages: Msg[], stockAddress?: string }
 export async function POST(req: NextRequest) {
+  const limited = await limit(req, "chat", 40, 600);
+  if (limited) return limited;
   const body = await req.json().catch(() => null);
   const messages: Msg[] = Array.isArray(body?.messages) ? body.messages.slice(-10) : [];
   const last = messages.filter((m) => m.role === "user").pop();

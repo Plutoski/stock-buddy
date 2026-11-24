@@ -9,7 +9,7 @@ import {
   useAccount, useBalance, useReadContract, useSendTransaction, useSwitchChain, useWaitForTransactionReceipt,
 } from "wagmi";
 import type { Quote, Stock } from "@/lib/types.ts";
-import { USDC_ADDRESS, USDC_DECIMALS, MIN_BUY_USDC, MAX_BUY_USDC, BASESCAN_TX } from "@/lib/constants.ts";
+import { USDC_ADDRESS, USDC_DECIMALS, MIN_BUY_USDC, MAX_BUY_USDC, BASESCAN_TX, isKyberRouter } from "@/lib/constants.ts";
 import { withAttribution, BUILDER_CODE } from "@/lib/attribution.ts";
 import { formatUsd } from "@/lib/explain.ts";
 import { ConnectButton, friendlyError } from "./ConnectButton.tsx";
@@ -145,7 +145,7 @@ export function BuyPanel({ stock, liveData, presetUsdc }: { stock: Stock; liveDa
       if (seq !== quoteSeq.current) return; // the user changed stock or amount meanwhile
       if (!res.ok) throw new Error(body.error || "The price service didn't answer. Try again in a minute.");
       const ok = typeof body.amountIn === "string" && typeof body.amountOut === "string" && body.amountOutTokens > 0
-        && typeof body.routerAddress === "string" && /^0x[0-9a-fA-F]{40}$/.test(body.routerAddress);
+        && isKyberRouter(body.routerAddress); // only KyberSwap's known router on Base
       if (!ok) throw new Error("The price service sent a quote Stock Buddy couldn't check. Try again.");
       setQuote(body as Quote); setStep("quoted");
     } catch (e) {
@@ -186,7 +186,7 @@ export function BuyPanel({ stock, liveData, presetUsdc }: { stock: Stock; liveDa
       if (tx.to?.toLowerCase() !== quote.routerAddress.toLowerCase()) throw new Error("The swap address changed after the quote, so Stock Buddy stopped. Get a new quote.");
       setStep("buying");
       await ensureBase();
-      const hash = await sendTransactionAsync({ to: tx.to, data: withAttribution(tx.data), value: BigInt(tx.value || 0), chainId: base.id });
+      const hash = await sendTransactionAsync({ to: tx.to, data: withAttribution(tx.data), value: 0n, chainId: base.id });
       setTxHash(hash);
     } catch (e) {
       setError(friendlyError((e as Error).message)); setStep("quoted");

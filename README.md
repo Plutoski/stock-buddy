@@ -37,6 +37,9 @@ Stock Buddy shows each of these before you buy or sell.
 - Approvals are for the exact amount of one trade, never unlimited.
 - Purchases are limited to $1 to $100. The app and the server both check the limit. A trade stops if the price moves more than 0.5%.
 - The server only builds swaps between USDC and a token on Coinbase's official list.
+- Stock Buddy only approves and sends to KyberSwap's known router on Base (`0x6131B5fae19EA4f9D964eAc0408E4408b66337b5`), checked on the server and in the browser, and never sends ETH with a swap. Any other answer from the swap service stops the trade.
+- Endpoints that call KyberSwap, the Base RPC or an AI model are rate-limited per visitor, so one visitor can't get Stock Buddy blocked for everyone.
+- Security headers stop other sites from showing Stock Buddy inside a frame, so a fake page can't be laid over the real buttons.
 - Questions that ask for advice are refused before they reach any model.
 - On the first visit, users confirm they are 18 or older, not a US person, and understand the risks.
 

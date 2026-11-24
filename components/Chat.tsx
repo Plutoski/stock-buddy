@@ -2,13 +2,14 @@
 
 import { useEffect, useRef, useState } from "react";
 import type { Stock } from "@/lib/types.ts";
-import { parseTradeIntent, type TradeIntent } from "@/lib/intent.ts";
+import { parseTradeIntent, parsePriceQuestion, type TradeIntent } from "@/lib/intent.ts";
 import { isAdviceQuestion, ADVICE_REPLY } from "@/lib/explain.ts";
 import { useOrders } from "./OrderContext.tsx";
 import { TradeCard } from "./TradeCard.tsx";
+import { PriceCard } from "./PriceCard.tsx";
 import { Logo } from "./Logo.tsx";
 
-interface Msg { role: "user" | "assistant"; content: string; intent?: TradeIntent }
+interface Msg { role: "user" | "assistant"; content: string; intent?: TradeIntent; price?: Stock }
 
 const GENERAL = [
   "What is a tokenized stock?",
@@ -39,8 +40,8 @@ export function Chat({ stock }: { stock?: Stock }) {
   }, [messages]);
 
   const suggestions = stock
-    ? [`Buy $5 of ${stock.ticker}`, `What does 1 ${stock.symbol} mean?`, "Why is the price different at night?", "What are the risks?"]
-    : ["Buy $5 of NVIDIA", ...GENERAL];
+    ? [`What is the price of ${stock.ticker}?`, `Buy $5 of ${stock.ticker}`, `What does 1 ${stock.symbol} mean?`, "Why is the price different at night?"]
+    : ["What is the price of NVDA?", "Buy $5 of NVIDIA", ...GENERAL];
 
   async function send(text: string) {
     const q = text.trim();
@@ -63,13 +64,24 @@ export function Chat({ stock }: { stock?: Stock }) {
         setMode("agent");
         return;
       }
+      // Price questions ("what is the price of NVDA?") get the live price, the official price and the gap.
+      const pq = parsePriceQuestion(q, stocks, stock);
+      if (pq?.kind === "price") {
+        setMessages([...next, { role: "assistant", content: `[price of ${pq.stock.ticker}]`, price: pq.stock }]);
+        setMode("agent");
+        return;
+      }
+      if (pq?.kind === "price-unknown") {
+        setMessages([...next, { role: "assistant", content: `I couldn't find a tokenized stock called "${pq.query}". Try its ticker, like NVDA or AAPL, or search the list.` }]);
+        return;
+      }
     }
     setLoading(true);
     try {
       const res = await fetch("/api/chat", {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ messages: next.filter((m) => !m.intent), stockAddress: stock?.address }),
+        body: JSON.stringify({ messages: next.filter((m) => !m.intent && !m.price), stockAddress: stock?.address }),
       });
       const body = await res.json();
       setMessages([...next, { role: "assistant", content: body.reply || body.error || "Stock Buddy couldn't answer that. Try again, or ask another way." }]);
@@ -94,8 +106,10 @@ export function Chat({ stock }: { stock?: Stock }) {
         {mode && <span className="pill tiny">{mode === "agent" ? "Order ready" : mode === "ai" ? "AI answer" : mode === "guard" ? "No advice" : "Answer"}</span>}
       </div>
       <div className="chat-log" aria-live="polite" ref={logRef}>
-        {messages.length === 0 && <p className="chat-empty">Ask how {stock ? `${stock.symbol} works` : "tokenized stocks work"}, or say what you want to do, like &quot;buy $5 of {stock ? stock.ticker : "NVIDIA"}&quot; or &quot;sell half my {stock ? stock.ticker : "Google"}&quot;. I don&apos;t give financial advice.</p>}
-        {messages.map((m, i) => m.intent
+        {messages.length === 0 && <p className="chat-empty">Ask for a price, like &quot;what is the price of {stock ? stock.ticker : "NVDA"}?&quot;, or say what you want to do, like &quot;buy $5 of {stock ? stock.ticker : "NVIDIA"}&quot;. You can also ask how {stock ? `${stock.symbol} works` : "tokenized stocks work"}. I don&apos;t give financial advice.</p>}
+        {messages.map((m, i) => m.price
+          ? <PriceCard key={i} stock={m.price} />
+          : m.intent
           ? <TradeCard key={i} intent={m.intent} />
           : <div key={i} className={`bubble ${m.role}`} dir="auto">{m.content}</div>)}
         {loading && <div className="bubble assistant typing">Checking…</div>}

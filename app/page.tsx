@@ -110,7 +110,7 @@ export default function Home() {
   const top = data?.stocks.find((s) => s.ticker === "NVDA") ?? data?.stocks[0];
 
   return (
-    <OrderContext.Provider value={{ stocks: data?.stocks ?? [], market, live, prepare }}>
+    <OrderContext.Provider value={{ stocks: data?.stocks ?? [], market, live, prepare, open: (s) => choose(s) }}>
       <EligibilityGate />
       <header className="topbar">
         <a className="brand" href="/" onClick={(e) => { e.preventDefault(); choose(null); }}>

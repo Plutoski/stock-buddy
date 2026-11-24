@@ -103,3 +103,24 @@ export function parseTradeIntent(text: string, stocks: Stock[], contextStock?: S
   if (amt && Number(amt[1]) > 0) return { side: "sell", stock, tokens: Number(amt[1]) };
   return { side: "missing-amount", stock, action };
 }
+
+// ---- Price questions: "what is the price of nvda", "how much is apple", "TSLA price" ----
+export type PriceQuestion = { kind: "price"; stock: Stock } | { kind: "price-unknown"; query: string };
+
+const PRICE_WORDS = /\b(price|prices|priced|cost|costs|worth|trading at|trades at|going for|quote|how much (is|are|does|do)|value)\b/i;
+// Questions about how prices work, not what a price is right now, go to the explainer instead.
+const ABOUT_PRICES = /\b(why|how does|how do|explain|gap|different|differ|dividend|split|night|weekend|official price mean|cost to (buy|sell)|fees?)\b/i;
+
+export function parsePriceQuestion(text: string, stocks: Stock[], contextStock?: Stock): PriceQuestion | null {
+  const t = text.trim();
+  if (!PRICE_WORDS.test(t) || ABOUT_PRICES.test(t)) return null;
+  if (/\b(buy|sell|purchase)\b/i.test(t)) return null; // trade requests are handled by parseTradeIntent
+  const stock = findStock(t, stocks);
+  if (stock) return { kind: "price", stock };
+  // On a stock page, "what's the price?" or "how much is it?" means the stock on screen.
+  if (contextStock && /\b(it|this|its|the price|price now|current price|price today)\b/i.test(t)) return { kind: "price", stock: contextStock };
+  const QWORDS = new Set(["what", "whats", "what's", "is", "are", "how", "much", "current", "currently", "today", "right", "tell", "show", "check",
+    "can", "you", "please", "s", "does", "do", "per", "latest", "live", "on", "base", "of", "the", "now", "price", "cost", "worth", "value", "quote"]);
+  const q = t.toLowerCase().replace(/[^a-z0-9.\s]/g, " ").split(/\s+/).find((w) => w && !QWORDS.has(w) && !STOP.has(w) && !/^\$?\d/.test(w)) || "";
+  return q.length >= 2 ? { kind: "price-unknown", query: q } : null;
+}

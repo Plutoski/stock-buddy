@@ -14,6 +14,8 @@ export interface OrderCtx {
   market?: MarketStatus;
   live: boolean;
   prepare: (order: PreparedOrder) => void;
+  /** Open a stock's page (used by the chat's price answers). */
+  open?: (stock: Stock) => void;
 }
 
 export const OrderContext = createContext<OrderCtx>({ stocks: [], live: false, prepare: () => {} });

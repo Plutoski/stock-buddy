@@ -63,3 +63,23 @@ test("round 2: amounts, percent, English-word tickers and the stock on screen", 
   assert.equal(f("sell everything", nv), "sell:NVDA:1");
   assert.equal(f("buy $5 of zzzcorp", nv), "unknown-stock::");
 });
+
+test("price questions: find the stock, leave how-prices-work questions to the explainer", async () => {
+  const { parsePriceQuestion } = await import("../lib/intent.ts");
+  const { isAdviceQuestion } = await import("../lib/explain.ts");
+  const nv = stocks.find((s) => s.ticker === "NVDA")!;
+  const f = (t: string, ctx?: typeof nv) => { const r = parsePriceQuestion(t, stocks, ctx); return r ? (r.kind === "price" ? r.stock.ticker : "unknown:" + r.query) : "null"; };
+  assert.equal(f("what is the price of nvda"), "NVDA");
+  assert.equal(f("What's the price of NVIDIA?"), "NVDA");
+  assert.equal(f("how much is google"), "GOOGL");
+  assert.equal(f("TSLA price"), "TSLA");
+  assert.equal(f("what is the price of xyzcorp"), "unknown:xyzcorp");
+  assert.equal(f("how much is it", nv), "NVDA");
+  assert.equal(f("why is the price different at night?"), "null");
+  assert.equal(f("What does it cost to buy?"), "null");
+  assert.equal(f("what's the price gap"), "null");
+  assert.equal(f("buy $5 of nvda"), "null");
+  assert.equal(isAdviceQuestion("is nvda a good price?"), true);
+  assert.equal(isAdviceQuestion("is tesla cheap right now?"), true);
+  assert.equal(isAdviceQuestion("what is the price of nvda"), false);
+});

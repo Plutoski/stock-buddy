@@ -9,7 +9,7 @@ export function StockIcon({ stock, size = 36 }: { stock: Stock; size?: number })
   const [broken, setBroken] = useState(false);
   if (stock.iconUrl && !broken) {
     // eslint-disable-next-line @next/next/no-img-element
-    return <img src={stock.iconUrl} alt="" width={size} height={size} className="icon" onError={() => setBroken(true)} />;
+    return <img src={stock.iconUrl} alt="" width={size} height={size} className="icon" loading="lazy" decoding="async" onError={() => setBroken(true)} />;
   }
   return (
     <span className="icon icon-fallback" style={{ width: size, height: size, fontSize: size * 0.36 }} aria-hidden>
@@ -29,10 +29,20 @@ export function StockList({ stocks, selected, onSelect, prices }: {
   stocks: Stock[]; selected?: string; onSelect: (s: Stock) => void; prices?: Map<string, LivePrice>;
 }) {
   const [q, setQ] = useState("");
+  const [showAll, setShowAll] = useState(false);
   const query = q.trim().toLowerCase();
-  const shown = query
-    ? stocks.filter((s) => s.name.toLowerCase().includes(query) || s.ticker.toLowerCase().includes(query) || s.symbol.toLowerCase().includes(query))
+  // Stocks with a live price come first. The rest of the 400+ stocks load on request or through
+  // search, so the first page draws quickly on a slow connection.
+  const ordered = prices && prices.size
+    ? [...stocks.filter((s) => prices.has(s.address.toLowerCase())), ...stocks.filter((s) => !prices.has(s.address.toLowerCase()))]
     : stocks;
+  const matches = query
+    ? stocks.filter((s) => s.name.toLowerCase().includes(query) || s.ticker.toLowerCase().includes(query) || s.symbol.toLowerCase().includes(query))
+    : ordered;
+  const LIMIT = 40;
+  let shown = showAll || query ? matches : matches.slice(0, LIMIT);
+  const sel = selected ? matches.find((s) => s.address === selected) : undefined;
+  if (sel && !shown.includes(sel)) shown = [...shown, sel];
 
   return (
     <div className="list">
@@ -63,6 +73,9 @@ export function StockList({ stocks, selected, onSelect, prices }: {
           </li>
         ))}
       </ul>
+      {!showAll && !query && matches.length > shown.length && (
+        <button className="btn btn-ghost btn-block" onClick={() => setShowAll(true)}>Show all {matches.length} stocks</button>
+      )}
     </div>
   );
 }

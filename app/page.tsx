@@ -89,6 +89,33 @@ export default function Home() {
   }, [data, selected]);
 
   // On phones the detail view replaces the list; scroll to top when switching.
+  // On phones the home page is split into three pages (Home, Stocks, Ask) with a tab bar at the bottom.
+  // The page shown follows the address hash (#stocks, #ask), so the phone's back button works.
+  const [phone, setPhone] = useState(false);
+  const [hash, setHash] = useState("");
+  useEffect(() => {
+    const mq = window.matchMedia("(max-width: 899px)");
+    const onMq = () => setPhone(mq.matches);
+    const onHash = () => {
+      setHash(window.location.hash);
+      if (mq.matches && (window.location.hash === "#stocks" || window.location.hash === "#ask" || window.location.hash === "")) {
+        setSelected(null); window.scrollTo({ top: 0 });
+      }
+    };
+    onMq(); setHash(window.location.hash);
+    mq.addEventListener("change", onMq); window.addEventListener("hashchange", onHash);
+    return () => { mq.removeEventListener("change", onMq); window.removeEventListener("hashchange", onHash); };
+  }, []);
+  const view: "all" | "home" | "stocks" | "ask" = !phone ? "all" : hash === "#stocks" ? "stocks" : hash === "#ask" ? "ask" : "home";
+  const showHero = !selected && (view === "all" || view === "home");
+  const showList = !!selected || view === "all" || view === "stocks";
+  const showAsk = !selected && (view === "all" || view === "ask");
+  const goTab = (h: "" | "#stocks" | "#ask") => (e: React.MouseEvent) => {
+    e.preventDefault();
+    if (window.location.hash === h || (!h && !window.location.hash)) { setSelected(null); window.scrollTo({ top: 0 }); return; }
+    if (h) window.location.hash = h; else { history.pushState(null, "", window.location.pathname); setHash(""); setSelected(null); window.scrollTo({ top: 0 }); }
+  };
+
   function choose(s: Stock | null, tab: "buy" | "sell" = "buy") {
     setOrder(null);
     setOpenTab(tab);
@@ -114,7 +141,7 @@ export default function Home() {
     <OrderContext.Provider value={{ stocks: data?.stocks ?? [], market, live, prepare, open: (s) => choose(s) }}>
       <EligibilityGate />
       <header className="topbar">
-        <a className="brand" href="/" onClick={(e) => { e.preventDefault(); choose(null); }}>
+        <a className="brand" href="/" onClick={(e) => { if (phone) return goTab("")(e); e.preventDefault(); choose(null); }}>
           <Logo size={30} /> <span>Stock Buddy</span>
         </a>
         <nav className="nav" aria-label="Sections">
@@ -129,7 +156,7 @@ export default function Home() {
       {data?.source === "sample" && <div className="banner banner-warn">{data.note}</div>}
 
       <main>
-      {!selected && (
+      {showHero && (
         <section className="hero" aria-label="Introduction">
           <div className="wrap hero-grid">
             <div className="hero-copy">
@@ -153,8 +180,8 @@ export default function Home() {
         </section>
       )}
 
-      <div id="stocks" className={`layout ${selected ? "has-selection" : "is-home"}`}>
-        <aside className="sidebar">
+      {(showList || showAsk) && <div id="stocks" className={`layout ${selected ? "has-selection" : "is-home"} view-${selected ? "detail" : view}`}>
+        {showList && <aside className="sidebar">
           {!selected && (
             <div className="section-head">
               <h2>Stocks you can buy</h2>
@@ -173,9 +200,9 @@ export default function Home() {
           )}
           {data && live && selected && <MyStocks stocks={data.stocks} prices={priceMap} onOpen={(s) => choose(s, "sell")} />}
           {data && <StockList stocks={data.stocks} selected={selected?.address} onSelect={(s) => choose(s)} prices={priceMap} />}
-        </aside>
+        </aside>}
 
-        <section className="content">
+        {(selected || showAsk) && <section className="content">
           {selected && market ? (
             <StockDetail key={selected.address + openTab + (order?.n ?? "")} initialTab={openTab}
               order={order && order.stock.address === selected.address ? order : undefined} stock={selected} market={market} liveData={live} onBack={() => choose(null)}
@@ -186,10 +213,10 @@ export default function Home() {
               <Chat />
             </div>
           )}
-        </section>
-      </div>
+        </section>}
+      </div>}
 
-      {!selected && (
+      {showHero && (
         <>
           <HowItWorks />
           <PriceWeek market={market} />
@@ -200,6 +227,17 @@ export default function Home() {
         </>
       )}
       </main>
+
+      {phone && (
+        <nav className="tabbar" aria-label="Pages">
+          <a href="/" onClick={goTab("")} aria-current={!selected && view === "home" ? "page" : undefined}>
+            <svg viewBox="0 0 24 24" aria-hidden><path d="M3 11l9-7 9 7v9a1 1 0 0 1-1 1h-5v-6H9v6H4a1 1 0 0 1-1-1z"/></svg>Home</a>
+          <a href="#stocks" onClick={goTab("#stocks")} aria-current={!selected && view === "stocks" ? "page" : undefined}>
+            <svg viewBox="0 0 24 24" aria-hidden><path d="M4 19h16M6 16V10M11 16V6M16 16v-4M20 16V8"/></svg>Stocks</a>
+          <a href="#ask" onClick={goTab("#ask")} aria-current={!selected && view === "ask" ? "page" : undefined}>
+            <svg viewBox="0 0 24 24" aria-hidden><path d="M4 5h16v11H9l-5 4z"/></svg>Ask</a>
+        </nav>
+      )}
 
       <footer className="footer">
         <div className="wrap footer-grid">

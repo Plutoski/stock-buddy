@@ -8,7 +8,7 @@ import { ConnectButton } from "@/components/ConnectButton.tsx";
 import { EligibilityGate } from "@/components/EligibilityGate.tsx";
 import { StockList } from "@/components/StockList.tsx";
 import { StockDetail } from "@/components/StockDetail.tsx";
-import { Chat } from "@/components/Chat.tsx";
+import { Chat, type ChatMsg } from "@/components/Chat.tsx";
 import { MyStocks } from "@/components/MyStocks.tsx";
 import { Logo } from "@/components/Logo.tsx";
 import { GapMeter } from "@/components/landing/GapMeter.tsx";
@@ -31,6 +31,7 @@ export default function Home() {
     refetchInterval: 60_000,
   });
   const [selected, setSelected] = useState<Stock | null>(null);
+  const chatHistory = useState<ChatMsg[]>([]); // the home chat keeps its conversation across pages
   const [openTab, setOpenTab] = useState<"buy" | "sell">("buy");
   const [order, setOrder] = useState<(PreparedOrder & { n: number }) | null>(null);
 
@@ -205,12 +206,16 @@ export default function Home() {
         {(selected || showAsk) && <section className="content">
           {selected && market ? (
             <StockDetail key={selected.address + openTab + (order?.n ?? "")} initialTab={openTab}
-              order={order && order.stock.address === selected.address ? order : undefined} stock={selected} market={market} liveData={live} onBack={() => choose(null)}
+              order={order && order.stock.address === selected.address ? order : undefined} stock={selected} market={market} liveData={live} onBack={() => {
+                // On phones, Back leads to the stock list page, wherever the stock was opened from.
+                if (phone && window.location.hash !== "#stocks") { window.location.hash = "#stocks"; return; }
+                choose(null);
+              }}
               livePrice={priceMap.get(selected.address.toLowerCase())} priceLoading={live && (topLoading || selLoading)} />
           ) : (
             <div className="welcome" id="ask">
               {data && live && <MyStocks stocks={data.stocks} prices={priceMap} onOpen={(s) => choose(s, "sell")} />}
-              <Chat />
+              <Chat history={chatHistory} />
             </div>
           )}
         </section>}

@@ -18,8 +18,11 @@ const GENERAL = [
   "What does it cost to buy?",
 ];
 
-export function Chat({ stock }: { stock?: Stock }) {
-  const [messages, setMessages] = useState<Msg[]>([]);
+export type ChatMsg = Msg;
+/** The conversation can live outside the chat, so it survives switching pages or opening a stock. */
+export function Chat({ stock, history }: { stock?: Stock; history?: [Msg[], (m: Msg[]) => void] }) {
+  const local = useState<Msg[]>([]);
+  const [messages, setMessages] = history ?? local;
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
   const [mode, setMode] = useState<string>("");
@@ -27,7 +30,12 @@ export function Chat({ stock }: { stock?: Stock }) {
   const { stocks } = useOrders();
 
   // Start a fresh conversation when the user switches stock.
-  useEffect(() => { setMessages([]); setMode(""); }, [stock?.address]);
+  // A new stock starts a new conversation; showing the same chat again keeps it.
+  const lastStock = useRef(stock?.address);
+  useEffect(() => {
+    if (lastStock.current === stock?.address) return;
+    lastStock.current = stock?.address; setMessages([]); setMode("");
+  }, [stock?.address]);
   // Scroll only the chat box (not the whole page) so the newest message is visible.
   useEffect(() => { const el = logRef.current; if (el) el.scrollTop = el.scrollHeight; }, [messages, loading]);
   // Trade cards grow when their live quote arrives: keep the newest content (and its button) in view.

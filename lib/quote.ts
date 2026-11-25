@@ -82,7 +82,7 @@ export async function getLivePrice(stock: Stock): Promise<LivePrice | null> {
 }
 
 /** Prices for many stocks, a few at a time. */
-export async function getLivePrices(stocks: Stock[], concurrency = 6): Promise<LivePrice[]> {
+export async function getLivePrices(stocks: Stock[], concurrency = 12): Promise<LivePrice[]> {
   const out: LivePrice[] = [];
   for (let i = 0; i < stocks.length; i += concurrency) {
     const batch = await Promise.all(stocks.slice(i, i + concurrency).map(getLivePrice));

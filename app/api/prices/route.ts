@@ -26,6 +26,6 @@ export async function GET(req: NextRequest) {
   const prices = await getLivePrices(chosen);
   return NextResponse.json(
     { source, prices },
-    { headers: { "cache-control": "public, s-maxage=60, stale-while-revalidate=120" } },
+    { headers: { "cache-control": "public, s-maxage=60, stale-while-revalidate=600" } },
   );
 }

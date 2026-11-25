@@ -45,7 +45,8 @@ export default function Home() {
   const { data: topPrices, isLoading: topLoading } = useQuery<{ prices: LivePrice[] }>({
     queryKey: ["prices", "top"],
     queryFn: () => fetchPrices("/api/prices"),
-    enabled: live,
+    // Start straight away, alongside the stock list, instead of waiting for it. (Prices are only shown for live data.)
+    enabled: !data || live,
     retry: 1,
     refetchInterval: 90_000,
   });
